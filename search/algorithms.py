@@ -550,8 +550,12 @@ def contour_search(
     if start not in graph.adjacency or goal not in graph.adjacency:
         return None
 
+    neighbors = graph.neighbors
+    h_fn = heuristic
+    round_fn = round
+
     buckets: Dict[float, List] = {}
-    f_start = round(heuristic(start, goal), precision)
+    f_start = round_fn(h_fn(start, goal), precision)
     buckets.setdefault(f_start, []).append(start)
     visited: Set[str] = set()
     g_score: Dict[str, float] = {start: 0.0}
@@ -573,7 +577,7 @@ def contour_search(
                 return path[::-1]
             visited.add(node)
             g = g_score[node]
-            for edge in graph.neighbors(node):
+            for edge in neighbors(node):
                 nxt = edge.target
                 if nxt in visited:
                     continue
@@ -581,7 +585,7 @@ def contour_search(
                 if new_g < g_score.get(nxt, float("inf")):
                     g_score[nxt] = new_g
                     pred[nxt] = node
-                    new_f = round(new_g + heuristic(nxt, goal), precision)
+                    new_f = round_fn(new_g + h_fn(nxt, goal), precision)
                     if new_f < current_min:
                         current_min = new_f
                     buckets.setdefault(new_f, []).append(nxt)
