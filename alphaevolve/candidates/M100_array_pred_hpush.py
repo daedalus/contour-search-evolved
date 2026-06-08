@@ -1,5 +1,6 @@
-from typing import Callable, Dict, List, Optional
 import heapq
+from array import array
+from typing import Callable, Dict, List, Optional
 from search.graph import Graph
 
 
@@ -13,8 +14,14 @@ def contour_search(
     if start not in graph.adjacency or goal not in graph.adjacency:
         return None
 
-    idx = graph._cs_idx
-    if idx is None:
+    try:
+        nb_idx = graph._cs_nb_idx
+        idx = graph._cs_idx
+        inv = graph._cs_inv
+    except AttributeError:
+        for attr in list(graph.__dict__):
+            if attr.startswith('_cs_'):
+                delattr(graph, attr)
         idx = {n: i for i, n in enumerate(graph.adjacency)}
         N = len(idx)
         inv = [None] * N
@@ -27,21 +34,12 @@ def contour_search(
         graph._cs_idx = idx
         graph._cs_inv = inv
         graph._cs_nb_idx = nb_idx
-    else:
-        nb_idx = graph._cs_nb_idx
-        inv = graph._cs_inv
 
     N = len(inv)
     start_i = idx[start]
     goal_i = idx[goal]
 
-    h_cache = graph._cs_h_cache
-    if h_cache is None or graph._cs_h_goal != goal or graph._cs_h_precision != precision or graph._cs_h_fn is not heuristic:
-        h_cache = [round(heuristic(inv[i], goal), precision) for i in range(N)]
-        graph._cs_h_cache = h_cache
-        graph._cs_h_goal = goal
-        graph._cs_h_precision = precision
-        graph._cs_h_fn = heuristic
+    h_cache: List[float] = [round(heuristic(inv[i], goal), precision) for i in range(N)]
 
     buckets: Dict[float, List[int]] = {}
     key_heap: List[float] = []
@@ -49,19 +47,24 @@ def contour_search(
     buckets[f_start] = [start_i]
     heapq.heappush(key_heap, f_start)
 
-    g_score = [float('inf')] * N
+    g_score = array('d', [float('inf')]) * N
     g_score[start_i] = 0.0
-    pred = [-1] * N
+    pred = array('i', [-1]) * N
     VISITED = float('-inf')
 
     _last_f = f_start
     _last_list = buckets[f_start]
 
+    hpush = heapq.heappush
+    hpop = heapq.heappop
+    gset = buckets.get
+    gdel = buckets.pop
+
     while key_heap:
-        f_key = heapq.heappop(key_heap)
+        f_key = hpop(key_heap)
         if f_key not in buckets:
             continue
-        entries = buckets.pop(f_key)
+        entries = gdel(f_key)
         _last_f = f_key
         _last_list = entries
 
@@ -88,13 +91,14 @@ def contour_search(
                     if new_f == _last_f:
                         _last_list.append(nxt_i)
                     else:
-                        try:
-                            _last_list = buckets[new_f]
-                            _last_list.append(nxt_i)
-                        except KeyError:
-                            _last_list = [nxt_i]
-                            buckets[new_f] = _last_list
-                            heapq.heappush(key_heap, new_f)
+                        lst = gset(new_f)
+                        if lst is None:
+                            lst = [nxt_i]
+                            buckets[new_f] = lst
+                            hpush(key_heap, new_f)
+                        else:
+                            lst.append(nxt_i)
                         _last_f = new_f
+                        _last_list = lst
 
     return None

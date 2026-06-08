@@ -1,5 +1,6 @@
 from typing import Callable, Dict, List, Optional
 import heapq
+from array import array
 from search.graph import Graph
 
 
@@ -51,7 +52,7 @@ def contour_search(
 
     g_score = [float('inf')] * N
     g_score[start_i] = 0.0
-    pred = [-1] * N
+    pred = array('i', [-1]) * N
     VISITED = float('-inf')
 
     _last_f = f_start
@@ -88,13 +89,14 @@ def contour_search(
                     if new_f == _last_f:
                         _last_list.append(nxt_i)
                     else:
-                        try:
-                            _last_list = buckets[new_f]
-                            _last_list.append(nxt_i)
-                        except KeyError:
-                            _last_list = [nxt_i]
-                            buckets[new_f] = _last_list
+                        lst = buckets.get(new_f)
+                        if lst is None:
+                            lst = [nxt_i]
+                            buckets[new_f] = lst
                             heapq.heappush(key_heap, new_f)
+                        else:
+                            lst.append(nxt_i)
                         _last_f = new_f
+                        _last_list = lst
 
     return None
