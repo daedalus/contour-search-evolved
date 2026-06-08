@@ -556,11 +556,14 @@ def contour_search(
 
     buckets: Dict[float, List] = {}
     f_start = round_fn(h_fn(start, goal), precision)
-    buckets.setdefault(f_start, []).append(start)
+    buckets[f_start] = [start]
     visited: Set[str] = set()
+    visited_add = visited.add
     g_score: Dict[str, float] = {start: 0.0}
     pred: Dict[str, str] = {}
     current_min = f_start
+    g_get = g_score.get
+    INF = float("inf")
 
     while buckets:
         if current_min not in buckets:
@@ -575,20 +578,24 @@ def contour_search(
                     node = pred[node]
                     path.append(node)
                 return path[::-1]
-            visited.add(node)
+            visited_add(node)
             g = g_score[node]
             for edge in neighbors(node):
                 nxt = edge.target
                 if nxt in visited:
                     continue
                 new_g = g + edge.weight
-                if new_g < g_score.get(nxt, float("inf")):
+                if new_g < g_get(nxt, INF):
                     g_score[nxt] = new_g
                     pred[nxt] = node
                     new_f = round_fn(new_g + h_fn(nxt, goal), precision)
                     if new_f < current_min:
                         current_min = new_f
-                    buckets.setdefault(new_f, []).append(nxt)
+                    bucket = buckets.get(new_f)
+                    if bucket is None:
+                        buckets[new_f] = [nxt]
+                    else:
+                        bucket.append(nxt)
     return None
 
 
