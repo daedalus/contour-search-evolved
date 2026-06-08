@@ -80,8 +80,25 @@ M68 discards string-based dict/set operations in the inner loop entirely. Node n
 
 M72 caches the last-accessed bucket list reference (`_last_f`/`_last_list`), eliminating `dict.get` from the hot loop's common path. When consecutive node expansions produce the same f-value (the dominant case for well-informed heuristics), nodes are appended directly to the cached list — `dict.get`, the `if lst is None` check, and the `dict.__setitem__` path are all skipped. This kills the last dict operation in the hot loop: the profile shows `dict.pop` at 200 calls (from 1M) and `dict.get` at 0 calls across 200 iterations of chain_5k. Delivers 1.22× over M68 (0.974 ms mean, 9.14× vs baseline).
 
+### Signal vs noise
+
+Every successful mutation removed a specific Python overhead from the per-edge hot loop. Mutations that reshuffled the same operations (try/except KeyError, defaultdict, int-quantized keys, heap min-tracking) all landed within noise or regressed:
+
+| Mutation | Signal (removed from hot loop) | Gain |
+|----------|--------------------------------|------|
+| M2 | O(n) path copies → O(1) predecessor map | 3.07× |
+| M3 | global lookups → local variable bindings | 1.07× |
+| M4 | O(K) `min(buckets.keys())` → `current_min` tracking | 1.13× |
+| M7 | per-call list allocation (`setdefault`) → `.get`+`if` | ~1.01× |
+| M61 | per-edge `edge.target`/`edge.weight` `__dict__` probes → tuple unpacking | 1.25× |
+| M63 | per-edge `round()` + `heuristic()` calls → `h_cache[nxt]` list read | 1.15× |
+| M68 | string-keyed dict ops → int-indexed `bytearray`/array accesses | 1.28× |
+| M72 | `dict.get` per edge → cached `_last_list` append | 1.25× |
+
+The common pattern: every ≥1.15× win removed either a **hash-table operation** (dict get/set, `__dict__` probe) or a **Python-level allocation** (path copy, list alloc) from the per-edge path. The remaining hot loop is pure C-level array reads/writes and float math.
+
 Evolution framework in `alphaevolve/`:
 - `evaluator.py` — benchmark harness (5 graph topologies, median timing)
 - `mutations.py` — programmatic variants M0–M7
 - `evolve.py` — LLM-driven evolutionary loop
-- `best_found.py` — current champion (M68)
+- `best_found.py` — current champion (M72)
