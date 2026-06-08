@@ -49,12 +49,15 @@ pytest tests/ -q    # 262 tests (203 original + 59 contour-search stress tests)
 | M4 | + current_min tracking | 2.40 ms | 3.71× |
 | M7 | + `.get`/`INF`/method-ref micro-ops | 2.39 ms | 3.73× |
 | M61 | + cached tuple-based neighbors (strip `__dict__` access) | 1.80 ms | 4.95× |
-| **M63** | + precomputed heuristic cache (eliminate `round` + `h_fn` from hot loop) | **1.56 ms** | **5.71×** |
+| M63 | + precomputed heuristic cache (eliminate `round` + `h_fn` from hot loop) | 1.56 ms | 5.71× |
+| **M68** | + int-indexed node storage (list/bytearray replace dict/set in hot loop) | **1.22 ms** | **7.30×** |
 
-M61 converts `Edge` objects to `(target, weight)` tuples once (lazily cached on the graph object via `graph._cs_nb`), replacing `edge.target`/`edge.weight` `__dict__` lookups with C-level tuple unpacking in the hot loop. The cache is invalidated on graph mutation (`add_edge` deletes `_cs_nb`, triggering a rebuild on the next call).
+M61 converts `Edge` objects to `(target, weight)` tuples once (lazily cached on the graph object via `graph._cs_nb`), replacing `edge.target`/`edge.weight` `__dict__` lookups with C-level tuple unpacking in the hot loop. The cache is invalidated on graph mutation (`add_edge` deletes `_cs_*` attributes, triggering a rebuild on the next call).
+
+M68 discards string-based dict/set operations in the inner loop entirely. Node names are mapped to integer indices (cached on the graph as `_cs_idx`/`_cs_inv`/`_cs_nb_idx`), and the hot loop uses `bytearray` for visited checks, `List[float]` for g-scores and heuristic cache, and `List[int]` for predecessors — replacing 4–5 dict operations per edge with C-level array accesses. This breaks through the micro-optimisation plateau that M63 hit, delivering 1.19×–1.42× per-benchmark over M63 (1.22 ms mean, 7.30× vs baseline).
 
 Evolution framework in `alphaevolve/`:
 - `evaluator.py` — benchmark harness (5 graph topologies, median timing)
-- `mutations.py` — programmatic variants M0–M61
+- `mutations.py` — programmatic variants M0–M7
 - `evolve.py` — LLM-driven evolutionary loop
-- `best_found.py` — current champion
+- `best_found.py` — current champion (M68)
