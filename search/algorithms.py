@@ -540,6 +540,11 @@ def dijkstra(graph: Graph, start: str, goal: str) -> Optional[List[str]]:
     return None
 
 
+from typing import Callable, Dict, List, Optional
+import heapq
+from search.graph import Graph
+
+
 def contour_search(
     graph: Graph,
     start: str,
@@ -578,24 +583,27 @@ def contour_search(
     h_cache = [round(heuristic(inv[i], goal), precision) for i in range(N)]
 
     buckets: Dict[float, List[int]] = {}
+    key_heap: List[float] = []
     f_start = h_cache[start_i]
     buckets[f_start] = [start_i]
+    heapq.heappush(key_heap, f_start)
 
     visited = bytearray(N)
     g_score = [float('inf')] * N
     g_score[start_i] = 0.0
     pred = [-1] * N
 
-    current_min = f_start
     _last_f = f_start
     _last_list = buckets[f_start]
 
-    while buckets:
-        if current_min not in buckets:
-            current_min = min(buckets.keys())
-        entries = buckets.pop(current_min)
-        _last_f = current_min
+    while key_heap:
+        f_key = heapq.heappop(key_heap)
+        if f_key not in buckets:
+            continue
+        entries = buckets.pop(f_key)
+        _last_f = f_key
         _last_list = entries
+
         for node_i in entries:
             if visited[node_i]:
                 continue
@@ -606,8 +614,10 @@ def contour_search(
                     cur = pred[cur]
                     path.append(inv[cur])
                 return path[::-1]
+
             visited[node_i] = 1
             g = g_score[node_i]
+
             for nxt_i, wt in nb_idx[node_i]:
                 if visited[nxt_i]:
                     continue
@@ -616,8 +626,6 @@ def contour_search(
                     g_score[nxt_i] = new_g
                     pred[nxt_i] = node_i
                     new_f = new_g + h_cache[nxt_i]
-                    if new_f < current_min:
-                        current_min = new_f
                     if new_f == _last_f:
                         _last_list.append(nxt_i)
                     else:
@@ -625,11 +633,14 @@ def contour_search(
                         if lst is None:
                             lst = [nxt_i]
                             buckets[new_f] = lst
+                            heapq.heappush(key_heap, new_f)
                         else:
                             lst.append(nxt_i)
                         _last_f = new_f
                         _last_list = lst
+
     return None
+
 
 
 def astar(

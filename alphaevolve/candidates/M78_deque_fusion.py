@@ -1,5 +1,5 @@
-from typing import Callable, Dict, List, Optional
-import heapq
+from typing import Callable, Deque, List, Optional, Tuple
+from collections import deque
 from search.graph import Graph
 
 
@@ -40,30 +40,22 @@ def contour_search(
 
     h_cache = [round(heuristic(inv[i], goal), precision) for i in range(N)]
 
-    buckets: Dict[float, List[int]] = {}
-    key_heap: List[float] = []
-    f_start = h_cache[start_i]
-    buckets[f_start] = [start_i]
-    heapq.heappush(key_heap, f_start)
-
-    visited = bytearray(N)
     g_score = [float('inf')] * N
     g_score[start_i] = 0.0
     pred = [-1] * N
+    VISITED = -1.0
 
-    _last_f = f_start
-    _last_list = buckets[f_start]
+    buckets: Deque[Tuple[float, List[int]]] = deque()
+    f_start = h_cache[start_i]
+    buckets.append((f_start, [start_i]))
 
-    while key_heap:
-        f_key = heapq.heappop(key_heap)
-        if f_key not in buckets:
-            continue
-        entries = buckets.pop(f_key)
-        _last_f = f_key
-        _last_list = entries
+    free_lists: List[List[int]] = []
+
+    while buckets:
+        f_key, entries = buckets.popleft()
 
         for node_i in entries:
-            if visited[node_i]:
+            if g_score[node_i] < 0:
                 continue
             if node_i == goal_i:
                 path = [inv[goal_i]]
@@ -73,28 +65,30 @@ def contour_search(
                     path.append(inv[cur])
                 return path[::-1]
 
-            visited[node_i] = 1
             g = g_score[node_i]
+            g_score[node_i] = VISITED
 
             for nxt_i, wt in nb_idx[node_i]:
-                if visited[nxt_i]:
+                if g_score[nxt_i] < 0:
                     continue
                 new_g = g + wt
                 if new_g < g_score[nxt_i]:
                     g_score[nxt_i] = new_g
                     pred[nxt_i] = node_i
                     new_f = new_g + h_cache[nxt_i]
-                    if new_f == _last_f:
-                        _last_list.append(nxt_i)
+                    if new_f == f_key:
+                        entries.append(nxt_i)
+                    elif buckets and buckets[-1][0] == new_f:
+                        buckets[-1][1].append(nxt_i)
                     else:
-                        lst = buckets.get(new_f)
-                        if lst is None:
-                            lst = [nxt_i]
-                            buckets[new_f] = lst
-                            heapq.heappush(key_heap, new_f)
-                        else:
+                        if free_lists:
+                            lst = free_lists.pop()
                             lst.append(nxt_i)
-                        _last_f = new_f
-                        _last_list = lst
+                        else:
+                            lst = [nxt_i]
+                        buckets.append((new_f, lst))
+
+        entries.clear()
+        free_lists.append(entries)
 
     return None

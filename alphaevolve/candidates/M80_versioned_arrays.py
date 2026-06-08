@@ -1,5 +1,5 @@
-from typing import Callable, Dict, List, Optional
-import heapq
+from typing import Callable, Deque, Dict, List, Optional
+from collections import deque
 from search.graph import Graph
 
 
@@ -40,24 +40,77 @@ def contour_search(
 
     h_cache = [round(heuristic(inv[i], goal), precision) for i in range(N)]
 
-    buckets: Dict[float, List[int]] = {}
-    key_heap: List[float] = []
-    f_start = h_cache[start_i]
-    buckets[f_start] = [start_i]
-    heapq.heappush(key_heap, f_start)
+    try:
+        _cs_buckets = graph._cs_buckets
+        _cs_key_order = graph._cs_key_order
+        _cs_visited = graph._cs_visited
+        _cs_g_score = graph._cs_g_score
+        _cs_pred = graph._cs_pred
+        _cs_N = graph._cs_N
+        gen = graph._cs_gen
+        gen += 1
+        graph._cs_gen = gen
+        if gen <= 0:
+            _cs_visited = bytearray(N)
+            _cs_g_score = [float('inf')] * N
+            _cs_pred = [-1] * N
+            graph._cs_visited = _cs_visited
+            graph._cs_g_score = _cs_g_score
+            graph._cs_pred = _cs_pred
+            graph._cs_gen = 1
+            gen = 1
+    except AttributeError:
+        _cs_buckets = {}
+        _cs_key_order = deque()
+        _cs_visited = bytearray(N)
+        _cs_g_score = [float('inf')] * N
+        _cs_pred = [-1] * N
+        _cs_N = N
+        graph._cs_buckets = _cs_buckets
+        graph._cs_key_order = _cs_key_order
+        graph._cs_visited = _cs_visited
+        graph._cs_g_score = _cs_g_score
+        graph._cs_pred = _cs_pred
+        graph._cs_N = _cs_N
+        graph._cs_gen = 0
+        gen = 0
 
-    visited = bytearray(N)
-    g_score = [float('inf')] * N
-    g_score[start_i] = 0.0
-    pred = [-1] * N
+    if N != _cs_N:
+        _cs_visited = bytearray(N)
+        _cs_g_score = [float('inf')] * N
+        _cs_pred = [-1] * N
+        _cs_N = N
+        graph._cs_visited = _cs_visited
+        graph._cs_g_score = _cs_g_score
+        graph._cs_pred = _cs_pred
+        graph._cs_N = _cs_N
+
+    _cs_key_order.clear()
+    _cs_buckets.clear()
+    _cs_visited[:] = b'\x00' * N
+
+    f_start = h_cache[start_i]
+    _cs_key_order.append(f_start)
+    _cs_buckets[f_start] = [start_i]
+    _cs_g_score[start_i] = 0.0
+
+    g_score = _cs_g_score
+    visited = _cs_visited
+    pred = _cs_pred
+    buckets = _cs_buckets
+    key_order = _cs_key_order
 
     _last_f = f_start
     _last_list = buckets[f_start]
 
-    while key_heap:
-        f_key = heapq.heappop(key_heap)
-        if f_key not in buckets:
-            continue
+    if gen > 0:
+        for i in range(N):
+            g_score[i] = float('inf')
+            pred[i] = -1
+        g_score[start_i] = 0.0
+
+    while key_order:
+        f_key = key_order.popleft()
         entries = buckets.pop(f_key)
         _last_f = f_key
         _last_list = entries
@@ -91,7 +144,7 @@ def contour_search(
                         if lst is None:
                             lst = [nxt_i]
                             buckets[new_f] = lst
-                            heapq.heappush(key_heap, new_f)
+                            key_order.append(new_f)
                         else:
                             lst.append(nxt_i)
                         _last_f = new_f

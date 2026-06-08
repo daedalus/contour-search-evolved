@@ -73,7 +73,8 @@ pytest tests/ -q    # 262 tests (203 original + 59 contour-search stress tests)
 | M63 | + precomputed heuristic cache (eliminate `round` + `h_fn` from hot loop) | 1.56 ms | 5.71× |
 | **M68** | + int-indexed node storage (list/bytearray replace dict/set in hot loop) | 1.22 ms | 7.30× |
 | **M72** | + cached bucket-list reference (eliminate `dict.get` from hot loop) | 0.974 ms | 9.14× |
-| **M73** | + list-backed nb_idx (`List` replaces `Dict` for adjacency cache) | **~0.89 ms** | **~10.0×** |
+| **M73** | + list-backed nb_idx (`List` replaces `Dict` for adjacency cache) | ~0.89 ms | ~10.0× |
+| **M79** | + heap-ordered bucket keys (eliminates `current_min` + `min(buckets.keys())`) | **~0.63 ms** | **~14.1×** |
 
 M61 converts `Edge` objects to `(target, weight)` tuples once (lazily cached on the graph object via `graph._cs_nb`), replacing `edge.target`/`edge.weight` `__dict__` lookups with C-level tuple unpacking in the hot loop. The cache is invalidated on graph mutation (`add_edge` deletes `_cs_*` attributes, triggering a rebuild on the next call).
 
@@ -105,4 +106,5 @@ Evolution framework in `alphaevolve/`:
 - `evaluator.py` — benchmark harness (5 graph topologies, median timing)
 - `mutations.py` — programmatic variants M0–M7
 - `evolve.py` — LLM-driven evolutionary loop
-- `best_found.py` — current champion (M73)
+- `best_found.py` — current champion (M79)
+- `candidates/` — historical candidates including failed mutations (M74–M78)
