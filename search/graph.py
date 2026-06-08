@@ -20,6 +20,10 @@ class Graph:
             self.adjacency.setdefault(v, []).append(Edge(u, weight))
         self.adjacency.setdefault(v, [])
         self.adjacency.setdefault(u, [])
+        try:
+            del self._cs_nb
+        except AttributeError:
+            pass
 
     def neighbors(self, node: str) -> List[Edge]:
         return self.adjacency.get(node, [])
