@@ -588,10 +588,10 @@ def contour_search(
     buckets[f_start] = [start_i]
     heapq.heappush(key_heap, f_start)
 
-    visited = bytearray(N)
     g_score = [float('inf')] * N
     g_score[start_i] = 0.0
     pred = [-1] * N
+    VISITED = float('-inf')
 
     _last_f = f_start
     _last_list = buckets[f_start]
@@ -605,7 +605,8 @@ def contour_search(
         _last_list = entries
 
         for node_i in entries:
-            if visited[node_i]:
+            g = g_score[node_i]
+            if g == VISITED:
                 continue
             if node_i == goal_i:
                 path = [inv[goal_i]]
@@ -615,12 +616,9 @@ def contour_search(
                     path.append(inv[cur])
                 return path[::-1]
 
-            visited[node_i] = 1
-            g = g_score[node_i]
+            g_score[node_i] = VISITED
 
             for nxt_i, wt in nb_idx[node_i]:
-                if visited[nxt_i]:
-                    continue
                 new_g = g + wt
                 if new_g < g_score[nxt_i]:
                     g_score[nxt_i] = new_g
