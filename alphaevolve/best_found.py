@@ -8,9 +8,6 @@ def contour_search(
     if start not in graph.adjacency or goal not in graph.adjacency:
         return None
 
-    h_fn = heuristic
-    round_fn = round
-
     try:
         nb = graph._cs_nb
     except AttributeError:
@@ -19,8 +16,9 @@ def contour_search(
             nb[node] = [(e.target, e.weight) for e in edges]
         graph._cs_nb = nb
 
+    h_cache = {node: round(heuristic(node, goal), precision) for node in graph.adjacency}
     buckets: Dict[float, List] = {}
-    f_start = round_fn(h_fn(start, goal), precision)
+    f_start = h_cache[start]
     buckets[f_start] = [start]
     visited: Set[str] = set()
     visited_add = visited.add
@@ -52,7 +50,7 @@ def contour_search(
                 if new_g < g_get(nxt, INF):
                     g_score[nxt] = new_g
                     pred[nxt] = node
-                    new_f = round_fn(new_g + h_fn(nxt, goal), precision)
+                    new_f = new_g + h_cache[nxt]
                     if new_f < current_min:
                         current_min = new_f
                     bucket = buckets.get(new_f)

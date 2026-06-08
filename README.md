@@ -48,7 +48,8 @@ pytest tests/ -q    # 262 tests (203 original + 59 contour-search stress tests)
 | M3 | + local variable bindings | 2.71 ms | 3.28× |
 | M4 | + current_min tracking | 2.40 ms | 3.71× |
 | M7 | + `.get`/`INF`/method-ref micro-ops | 2.39 ms | 3.73× |
-| **M61** | + cached tuple-based neighbors (strip `__dict__` access) | **1.80 ms** | **4.95×** |
+| M61 | + cached tuple-based neighbors (strip `__dict__` access) | 1.80 ms | 4.95× |
+| **M63** | + precomputed heuristic cache (eliminate `round` + `h_fn` from hot loop) | **1.56 ms** | **5.71×** |
 
 M61 converts `Edge` objects to `(target, weight)` tuples once (lazily cached on the graph object via `graph._cs_nb`), replacing `edge.target`/`edge.weight` `__dict__` lookups with C-level tuple unpacking in the hot loop. The cache is invalidated on graph mutation (`add_edge` deletes `_cs_nb`, triggering a rebuild on the next call).
 
