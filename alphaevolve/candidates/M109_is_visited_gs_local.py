@@ -60,6 +60,7 @@ def contour_search(
     g_score = [float('inf')] * N
     g_score[start_i] = 0.0
     pred = [-1] * N
+    _gs = g_score
     VISITED = float('-inf')
 
     _last_f = f_start
@@ -74,8 +75,8 @@ def contour_search(
         _last_list = entries
 
         for node_i in entries:
-            g = g_score[node_i]
-            if g == VISITED:
+            g = _gs[node_i]
+            if g is VISITED:
                 continue
             if node_i == goal_i:
                 path = [inv[goal_i]]
@@ -85,12 +86,12 @@ def contour_search(
                     path.append(inv[cur])
                 return path[::-1]
 
-            g_score[node_i] = VISITED
+            _gs[node_i] = VISITED
 
             for nxt_i, wt, f_offset in nb_f_offset[node_i]:
                 new_g = g + wt
-                if new_g < g_score[nxt_i]:
-                    g_score[nxt_i] = new_g
+                if new_g < _gs[nxt_i]:
+                    _gs[nxt_i] = new_g
                     pred[nxt_i] = node_i
                     new_f = g + f_offset
                     if new_f == _last_f:

@@ -20,6 +20,7 @@ class Graph:
     _cs_h_goal: str = ""
     _cs_h_precision: int = 0
     _cs_h_fn: Optional[Callable] = None
+    _cs_nb_f_offset: Optional[List[Optional[List]]] = None
 
     def add_edge(self, u: str, v: str, weight: float = 1.0, bidirectional: bool = True) -> None:
         self.adjacency.setdefault(u, []).append(Edge(v, weight))
@@ -34,6 +35,7 @@ class Graph:
         self._cs_h_goal = ""
         self._cs_h_precision = 0
         self._cs_h_fn = None
+        self._cs_nb_f_offset = None
 
     def neighbors(self, node: str) -> List[Edge]:
         return self.adjacency.get(node, [])

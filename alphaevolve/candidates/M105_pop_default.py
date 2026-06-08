@@ -27,7 +27,6 @@ def contour_search(
         graph._cs_idx = idx
         graph._cs_inv = inv
         graph._cs_nb_idx = nb_idx
-        graph._cs_nb_f_offset = None
     else:
         nb_idx = graph._cs_nb_idx
         inv = graph._cs_inv
@@ -43,13 +42,6 @@ def contour_search(
         graph._cs_h_goal = goal
         graph._cs_h_precision = precision
         graph._cs_h_fn = heuristic
-        nb_f_offset = [[(nxt_i, wt, wt + h_cache[nxt_i]) for nxt_i, wt in nb] for nb in nb_idx]
-        graph._cs_nb_f_offset = nb_f_offset
-    else:
-        nb_f_offset = graph._cs_nb_f_offset
-        if nb_f_offset is None:
-            nb_f_offset = [[(nxt_i, wt, wt + h_cache[nxt_i]) for nxt_i, wt in nb] for nb in nb_idx]
-            graph._cs_nb_f_offset = nb_f_offset
 
     buckets: Dict[float, List[int]] = {}
     key_heap: List[float] = []
@@ -87,12 +79,12 @@ def contour_search(
 
             g_score[node_i] = VISITED
 
-            for nxt_i, wt, f_offset in nb_f_offset[node_i]:
+            for nxt_i, wt in nb_idx[node_i]:
                 new_g = g + wt
                 if new_g < g_score[nxt_i]:
                     g_score[nxt_i] = new_g
                     pred[nxt_i] = node_i
-                    new_f = g + f_offset
+                    new_f = new_g + h_cache[nxt_i]
                     if new_f == _last_f:
                         _last_list.append(nxt_i)
                     else:
