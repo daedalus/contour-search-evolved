@@ -14,6 +14,27 @@
 | **MST** | `prim_mst`, `kruskal_mst` |
 | **Ordering** | `topological_sort` |
 
+## Complexity
+
+| Algorithm | Time | Space | Optimal? | Notes |
+|-----------|------|-------|----------|-------|
+| `bfs` | O(V + E) | O(V) | unweighted | Shortest path in unweighted |
+| `dfs` | O(V + E) | O(V) | no | Finds any path, not shortest |
+| `dijkstra` | O((V + E) log V) | O(V) | yes | Non-negative weights |
+| `bellman_ford` | O(VE) | O(V) | yes | Handles negative; detects neg cycles |
+| `spfa` | O(VE) worst / O(E) typical | O(V) | yes | Queue-based; fast on sparse |
+| `dag_shortest_path` | O(V + E) | O(V) | yes | DAG only; fastest general SSSP |
+| `astar` | O(E) typical / O(b^d) worst | O(V) | with admissible h | Heuristic-guided |
+| `greedy_best_first` | O(E) typical | O(V) | no | Pure heuristic, no g-cost |
+| `contour_search` | O(V + E) typical | O(V) | with admissible h | Bucket-based A* |
+| `bidirectional_bfs` | O(b^(d/2)) | O(b^(d/2)) | unweighted | Meet-in-the-middle BFS |
+| `bidirectional_dijkstra` | O((V + E) log V) | O(V) | yes | Meet-in-the-middle Dijkstra |
+| `floyd_warshall` | O(V³) | O(V²) | yes | All-pairs; detect neg cycles |
+| `johnson` | O(VE + V² log V) | O(V²) | yes | All-pairs on sparse graphs |
+| `topological_sort` | O(V + E) | O(V) | — | Kahn's algorithm |
+| `prim_mst` | O((V + E) log V) | O(V) | yes | Minimum spanning tree |
+| `kruskal_mst` | O(E log E) | O(V + E) | yes | Sort-based MST |
+
 ## Usage
 
 ```python
