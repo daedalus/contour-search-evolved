@@ -71,11 +71,14 @@ pytest tests/ -q    # 262 tests (203 original + 59 contour-search stress tests)
 | M7 | + `.get`/`INF`/method-ref micro-ops | 2.39 ms | 3.73× |
 | M61 | + cached tuple-based neighbors (strip `__dict__` access) | 1.80 ms | 4.95× |
 | M63 | + precomputed heuristic cache (eliminate `round` + `h_fn` from hot loop) | 1.56 ms | 5.71× |
-| **M68** | + int-indexed node storage (list/bytearray replace dict/set in hot loop) | **1.22 ms** | **7.30×** |
+| **M68** | + int-indexed node storage (list/bytearray replace dict/set in hot loop) | 1.22 ms | 7.30× |
+| **M72** | + cached bucket-list reference (eliminate `dict.get` from hot loop) | **0.974 ms** | **9.14×** |
 
 M61 converts `Edge` objects to `(target, weight)` tuples once (lazily cached on the graph object via `graph._cs_nb`), replacing `edge.target`/`edge.weight` `__dict__` lookups with C-level tuple unpacking in the hot loop. The cache is invalidated on graph mutation (`add_edge` deletes `_cs_*` attributes, triggering a rebuild on the next call).
 
-M68 discards string-based dict/set operations in the inner loop entirely. Node names are mapped to integer indices (cached on the graph as `_cs_idx`/`_cs_inv`/`_cs_nb_idx`), and the hot loop uses `bytearray` for visited checks, `List[float]` for g-scores and heuristic cache, and `List[int]` for predecessors — replacing 4–5 dict operations per edge with C-level array accesses. This breaks through the micro-optimisation plateau that M63 hit, delivering 1.19×–1.42× per-benchmark over M63 (1.22 ms mean, 7.30× vs baseline).
+M68 discards string-based dict/set operations in the inner loop entirely. Node names are mapped to integer indices (cached on the graph as `_cs_idx`/`_cs_inv`/`_cs_nb_idx`), and the hot loop uses `bytearray` for visited checks, `List[float]` for g-scores and heuristic cache, and `List[int]` for predecessors — replacing 4–5 dict operations per edge with C-level array accesses.
+
+M72 caches the last-accessed bucket list reference (`_last_f`/`_last_list`), eliminating `dict.get` from the hot loop's common path. When consecutive node expansions produce the same f-value (the dominant case for well-informed heuristics), nodes are appended directly to the cached list — `dict.get`, the `if lst is None` check, and the `dict.__setitem__` path are all skipped. This kills the last dict operation in the hot loop: the profile shows `dict.pop` at 200 calls (from 1M) and `dict.get` at 0 calls across 200 iterations of chain_5k. Delivers 1.22× over M68 (0.974 ms mean, 9.14× vs baseline).
 
 Evolution framework in `alphaevolve/`:
 - `evaluator.py` — benchmark harness (5 graph topologies, median timing)

@@ -1,3 +1,8 @@
+from typing import Callable, Dict, List, Optional
+
+from search.graph import Graph
+
+
 def contour_search(
     graph: Graph,
     start: str,
@@ -44,11 +49,15 @@ def contour_search(
     pred = [-1] * N
 
     current_min = f_start
+    _last_f = f_start
+    _last_list = buckets[f_start]
 
     while buckets:
         if current_min not in buckets:
             current_min = min(buckets.keys())
         entries = buckets.pop(current_min)
+        _last_f = current_min
+        _last_list = entries
         for node_i in entries:
             if visited[node_i]:
                 continue
@@ -71,9 +80,15 @@ def contour_search(
                     new_f = new_g + h_cache[nxt_i]
                     if new_f < current_min:
                         current_min = new_f
-                    bucket = buckets.get(new_f)
-                    if bucket is None:
-                        buckets[new_f] = [nxt_i]
+                    if new_f == _last_f:
+                        _last_list.append(nxt_i)
                     else:
-                        bucket.append(nxt_i)
+                        lst = buckets.get(new_f)
+                        if lst is None:
+                            lst = [nxt_i]
+                            buckets[new_f] = lst
+                        else:
+                            lst.append(nxt_i)
+                        _last_f = new_f
+                        _last_list = lst
     return None
