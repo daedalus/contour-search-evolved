@@ -559,10 +559,11 @@ def contour_search(
             if attr.startswith('_cs_'):
                 delattr(graph, attr)
         idx = {n: i for i, n in enumerate(graph.adjacency)}
-        inv = [None] * len(idx)
+        N = len(idx)
+        inv = [None] * N
         for n, i in idx.items():
             inv[i] = n
-        nb_idx = {}
+        nb_idx = [None] * N
         for node, edges in graph.adjacency.items():
             node_i = idx[node]
             nb_idx[node_i] = [(idx[e.target], e.weight) for e in edges]

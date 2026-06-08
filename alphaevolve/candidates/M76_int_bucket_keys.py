@@ -1,7 +1,5 @@
 from typing import Callable, Dict, List, Optional
-
 from search.graph import Graph
-
 
 def contour_search(
     graph: Graph,
@@ -38,26 +36,27 @@ def contour_search(
     start_i = idx[start]
     goal_i = idx[goal]
 
-    h_cache = [round(heuristic(inv[i], goal), precision) for i in range(N)]
+    MULT = 10 ** precision
+    h_cache_int = [int(round(heuristic(inv[i], goal), precision) * MULT + 0.5) for i in range(N)]
 
-    buckets: Dict[float, List[int]] = {}
-    f_start = h_cache[start_i]
-    buckets[f_start] = [start_i]
+    buckets: Dict[int, List[int]] = {}
+    f_start_int = h_cache_int[start_i]
+    buckets[f_start_int] = [start_i]
 
     visited = bytearray(N)
     g_score = [float('inf')] * N
     g_score[start_i] = 0.0
     pred = [-1] * N
 
-    current_min = f_start
-    _last_f = f_start
-    _last_list = buckets[f_start]
+    current_min = f_start_int
+    _last_f_int = f_start_int
+    _last_list = buckets[f_start_int]
 
     while buckets:
         if current_min not in buckets:
             current_min = min(buckets.keys())
         entries = buckets.pop(current_min)
-        _last_f = current_min
+        _last_f_int = current_min
         _last_list = entries
         for node_i in entries:
             if visited[node_i]:
@@ -78,18 +77,18 @@ def contour_search(
                 if new_g < g_score[nxt_i]:
                     g_score[nxt_i] = new_g
                     pred[nxt_i] = node_i
-                    new_f = new_g + h_cache[nxt_i]
-                    if new_f < current_min:
-                        current_min = new_f
-                    if new_f == _last_f:
+                    new_f_int = int((new_g + 0.0) * MULT + 0.5) + h_cache_int[nxt_i]
+                    if new_f_int < current_min:
+                        current_min = new_f_int
+                    if new_f_int == _last_f_int:
                         _last_list.append(nxt_i)
                     else:
-                        lst = buckets.get(new_f)
+                        lst = buckets.get(new_f_int)
                         if lst is None:
                             lst = [nxt_i]
-                            buckets[new_f] = lst
+                            buckets[new_f_int] = lst
                         else:
                             lst.append(nxt_i)
-                        _last_f = new_f
+                        _last_f_int = new_f_int
                         _last_list = lst
     return None

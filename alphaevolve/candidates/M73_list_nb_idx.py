@@ -1,7 +1,5 @@
 from typing import Callable, Dict, List, Optional
-
 from search.graph import Graph
-
 
 def contour_search(
     graph: Graph,

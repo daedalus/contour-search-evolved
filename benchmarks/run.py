@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
-"""Benchmark all graph search algorithms and output a markdown table."""
+"""Benchmark all graph search algorithms with full statistical output."""
 
+import math
 import sys
 import time
 import statistics
@@ -11,10 +12,6 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from search.graph import Graph
 from search import algorithms as A
 
-
-# ---------------------------------------------------------------------------
-# Benchmark graphs
-# ---------------------------------------------------------------------------
 
 def make_chain(n: int) -> tuple[Graph, str, str]:
     g = Graph()
@@ -49,10 +46,6 @@ def make_dense(n: int) -> tuple[Graph, str, str]:
             g.add_edge(str(i), str(j), weight=abs(i - j), bidirectional=True)
     return g, "0", str(n - 1)
 
-
-# ---------------------------------------------------------------------------
-# Heuristics
-# ---------------------------------------------------------------------------
 
 def h_id(a: str, b: str) -> float:
     try:
@@ -90,12 +83,8 @@ HEURISTICS: dict[str, object] = {
     "dense_80": h_id,
 }
 
-WARMUP = 2
-RUNS = 5
-
-# ---------------------------------------------------------------------------
-# Algorithm registry: (name, callable, category)
-# ---------------------------------------------------------------------------
+WARMUP = 5
+RUNS = 15
 
 ALGORITHMS: list[tuple[str, object, str]] = [
     ("bfs", A.bfs, "path"),
@@ -117,7 +106,7 @@ ALGORITHMS: list[tuple[str, object, str]] = [
 ]
 
 
-def median_time(fn, g, s, t, h) -> float:
+def gather_times(fn, g, s, t, h) -> list[float]:
     if h is None:
         for _ in range(WARMUP):
             fn(g, s, t)
@@ -134,10 +123,10 @@ def median_time(fn, g, s, t, h) -> float:
             t0 = time.perf_counter()
             fn(g, s, t, h)
             times.append(time.perf_counter() - t0)
-    return statistics.median(times)
+    return times
 
 
-def median_time_graph(fn, g) -> float:
+def gather_times_graph(fn, g) -> list[float]:
     for _ in range(WARMUP):
         fn(g)
     times = []
@@ -145,11 +134,27 @@ def median_time_graph(fn, g) -> float:
         t0 = time.perf_counter()
         fn(g)
         times.append(time.perf_counter() - t0)
-    return statistics.median(times)
+    return times
 
 
-def run_benchmarks() -> dict[str, dict[str, float]]:
-    results: dict[str, dict[str, float]] = {}
+def stats_from(times: list[float]) -> dict:
+    n = len(times)
+    mean = statistics.mean(times)
+    median = statistics.median(times)
+    stdev = statistics.stdev(times) if n > 1 else 0.0
+    try:
+        mode = statistics.mode(times)
+    except statistics.StatisticsError:
+        mode = None
+    if n > 2 and stdev > 0:
+        skew = (sum((t - mean) ** 3 for t in times) / n) / (stdev ** 3)
+    else:
+        skew = None
+    return dict(mean=mean, median=median, mode=mode, stdev=stdev, skew=skew)
+
+
+def run_benchmarks(with_stats=False) -> dict[str, dict[str, float | dict]]:
+    results: dict[str, dict] = {}
 
     for name, fn, kind in ALGORITHMS:
         row = {}
@@ -158,13 +163,17 @@ def run_benchmarks() -> dict[str, dict[str, float]]:
                 if kind == "all_pairs":
                     if len(g.nodes()) >= 500:
                         continue
-                    row[bname] = median_time_graph(fn, g)
+                    times = gather_times_graph(fn, g)
                 elif kind == "heuristic":
-                    row[bname] = median_time(fn, g, s, t, HEURISTICS[bname])
+                    times = gather_times(fn, g, s, t, HEURISTICS[bname])
                 elif kind == "graph":
-                    row[bname] = median_time_graph(fn, g)
+                    times = gather_times_graph(fn, g)
                 else:
-                    row[bname] = median_time(fn, g, s, t, None)
+                    times = gather_times(fn, g, s, t, None)
+                if with_stats:
+                    row[bname] = stats_from(times)
+                else:
+                    row[bname] = statistics.median(times)
             except Exception:
                 pass
         results[name] = row
@@ -172,34 +181,117 @@ def run_benchmarks() -> dict[str, dict[str, float]]:
     return results
 
 
-def print_markdown(results: dict[str, dict[str, float]]) -> None:
+def print_markdown(results: dict[str, dict]) -> None:
     bnames = [b[0] for b in BENCHMARKS]
-    header = f"| {'algorithm':<20} |"
-    sep = f"| {'-'*20} |"
-    for bn in bnames:
-        header += f" {bn:>13} |"
-        sep += f" {'-'*13} |"
-    header += f" {'mean':>9} |"
-    sep += f" {'-'*9} |"
+    has_stats = any(isinstance(v, dict) for v in results.get(list(results)[0], {}).values())
 
-    print(header)
-    print(sep)
+    if not has_stats:
+        header = f"| {'algorithm':<20} |"
+        sep = f"| {'-'*20} |"
+        for bn in bnames:
+            header += f" {bn:>13} |"
+            sep += f" {'-'*13} |"
+        header += f" {'mean':>9} |"
+        sep += f" {'-'*9} |"
 
-    for name, row in results.items():
-        times = [row.get(bn) for bn in bnames]
-        valid = [t for t in times if t is not None]
-        mean = statistics.mean(valid) if valid else 0
-        line = f"| {name:<20} |"
-        for t in times:
-            if t is not None:
-                line += f" {t*1000:>10.3f}  |"
-            else:
-                line += f" {'—':>10}  |"
-        line += f" {mean*1000:>8.3f} |"
-        print(line)
+        print(header)
+        print(sep)
+
+        for name, row in results.items():
+            times = [row.get(bn) for bn in bnames]
+            valid = [t for t in times if t is not None]
+            mean = statistics.mean(valid) if valid else 0
+            line = f"| {name:<20} |"
+            for t in times:
+                if t is not None:
+                    line += f" {t*1000:>10.3f}  |"
+                else:
+                    line += f" {'—':>10}  |"
+            line += f" {mean*1000:>8.3f} |"
+            print(line)
+    else:
+        stat_labels = ["mean", "median", "mode", "stdev", "skew"]
+        for stat in stat_labels:
+            if stat == "mode":
+                header = f"| {'algo':<20} |"
+                sep = f"| {'-'*20} |"
+                for bn in bnames:
+                    header += f" {bn+'_'+stat:>13} |"
+                    sep += f" {'-'*13} |"
+                header += f" {'mean_'+stat:>9} |"
+                sep += f" {'-'*9} |"
+                print(f"\n## {stat}")
+                print(header)
+                print(sep)
+                for name, row in results.items():
+                    vals = [row.get(bn) for bn in bnames]
+                    mode_vals = []
+                    mean_val = 0.0
+                    count = 0
+                    for v in vals:
+                        if v is not None and v.get(stat) is not None:
+                            mode_vals.append(v[stat] * 1000)
+                            mean_val += v[stat] * 1000
+                            count += 1
+                    mode_mean = mean_val / count if count else 0
+                    seen = set()
+                    line = f"| {name:<20} |"
+                    for v in vals:
+                        if v is not None and v.get(stat) is not None:
+                            m = v[stat] * 1000
+                            line += f" {m:>10.3f}  |"
+                        else:
+                            line += f" {'—':>10}  |"
+                    line += f" {mode_mean:>8.3f} |"
+                    print(line)
+                continue
+            if stat == "skew":
+                header = f"| {'algo':<20} |"
+                sep = f"| {'-'*20} |"
+                for bn in bnames:
+                    header += f" {bn+'_'+stat:>13} |"
+                    sep += f" {'-'*13} |"
+                print(f"\n## {stat}")
+                print(header)
+                print(sep)
+                for name, row in results.items():
+                    vals = [row.get(bn) for bn in bnames]
+                    line = f"| {name:<20} |"
+                    for v in vals:
+                        if v is not None and v.get(stat) is not None:
+                            line += f" {v[stat]:>10.4f}  |"
+                        else:
+                            line += f" {'—':>10}  |"
+                    print(line)
+                continue
+            header = f"| {'algo':<20} |"
+            sep = f"| {'-'*20} |"
+            for bn in bnames:
+                header += f" {bn+'_'+stat:>11} |"
+                sep += f" {'-'*11} |"
+            header += f" {'mean_'+stat:>8} |"
+            sep += f" {'-'*8} |"
+            print(f"\n## {stat}")
+            print(header)
+            print(sep)
+            for name, row in results.items():
+                vals = [row.get(bn) for bn in bnames]
+                valid = []
+                for v in vals:
+                    if v is not None and v.get(stat) is not None:
+                        valid.append(v[stat] * 1000)
+                row_mean = statistics.mean(valid) if valid else 0
+                line = f"| {name:<20} |"
+                for v in vals:
+                    if v is not None and v.get(stat) is not None:
+                        line += f" {v[stat]*1000:>10.3f}  |"
+                    else:
+                        line += f" {'—':>10}  |"
+                line += f" {row_mean:>8.3f} |"
+                print(line)
 
 
-def print_csv(results: dict[str, dict[str, float]]) -> None:
+def print_csv(results: dict[str, dict]) -> None:
     bnames = [b[0] for b in BENCHMARKS]
     print("algorithm," + ",".join(bnames) + ",mean")
     for name, row in results.items():
@@ -214,9 +306,15 @@ if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument("--format", choices=["md", "csv"], default="md")
+    parser.add_argument("--stats", action="store_true", help="Print full stats table")
+    parser.add_argument("--warmup", type=int, default=5)
+    parser.add_argument("--runs", type=int, default=15)
     args = parser.parse_args()
 
-    results = run_benchmarks()
+    WARMUP = args.warmup
+    RUNS = args.runs
+
+    results = run_benchmarks(with_stats=args.stats)
 
     if args.format == "csv":
         print_csv(results)
