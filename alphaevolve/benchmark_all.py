@@ -1,0 +1,266 @@
+#!/usr/bin/env python3
+"""
+Comprehensive benchmark comparing contour_search (champion) against
+all other single-source shortest-path algorithms in the codebase.
+"""
+import math
+import time
+import statistics
+import sys
+from pathlib import Path
+from typing import Callable, Dict, List, Tuple
+
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from search.graph import Graph
+from search.algorithms import (
+    contour_search,
+    astar,
+    dijkstra,
+    bellman_ford,
+    spfa,
+    bidirectional_dijkstra,
+    greedy_best_first_search,
+    bfs,
+    dfs,
+)
+
+
+def make_undirected_chain(n: int) -> Tuple[Graph, str, str]:
+    g = Graph()
+    for i in range(n - 1):
+        g.add_edge(str(i), str(i + 1), weight=1, bidirectional=True)
+    return g, "0", str(n - 1)
+
+
+def make_undirected_star(n: int) -> Tuple[Graph, str, str]:
+    g = Graph()
+    for i in range(1, n):
+        g.add_edge("center", str(i), weight=1, bidirectional=True)
+    return g, "center", str(n - 1)
+
+
+def make_undirected_grid(rows: int, cols: int) -> Tuple[Graph, str, str]:
+    g = Graph()
+    for r in range(rows):
+        for c in range(cols):
+            node = f"{r},{c}"
+            if c + 1 < cols:
+                g.add_edge(node, f"{r},{c+1}", weight=1, bidirectional=True)
+            if r + 1 < rows:
+                g.add_edge(node, f"{r+1},{c}", weight=1, bidirectional=True)
+    return g, "0,0", f"{rows - 1},{cols - 1}"
+
+
+def make_undirected_dense(n: int) -> Tuple[Graph, str, str]:
+    g = Graph()
+    for i in range(n):
+        for j in range(i + 1, n):
+            g.add_edge(str(i), str(j), weight=abs(i - j), bidirectional=True)
+    return g, "0", str(n - 1)
+
+
+def h_manhattan(a: str, b: str) -> float:
+    try:
+        ar, ac = a.split(",")
+        br, bc = b.split(",")
+        return abs(int(ar) - int(br)) + abs(int(ac) - int(bc))
+    except Exception:
+        return 0.0
+
+
+def h_id(a: str, b: str) -> float:
+    try:
+        return abs(int(a) - int(b))
+    except Exception:
+        return 0.0
+
+
+def h_zero(a: str, b: str) -> float:
+    return 0.0
+
+
+BENCHMARKS = [
+    ("chain_1k", make_undirected_chain(1000), h_id),
+    ("chain_5k", make_undirected_chain(5000), h_id),
+    ("star_500", make_undirected_star(500), h_zero),
+    ("grid_2500", make_undirected_grid(50, 50), h_manhattan),
+    ("dense_80", make_undirected_dense(80), h_id),
+]
+
+WARMUP = 5
+RUNS = 30
+
+
+ALGORITHMS: Dict[str, Callable] = {
+    "contour_search": contour_search,
+    "astar": astar,
+    "dijkstra": dijkstra,
+    "bidirectional_dijkstra": bidirectional_dijkstra,
+    "greedy_best_first_search": greedy_best_first_search,
+    "bellman_ford": bellman_ford,
+    "spfa": spfa,
+    "bfs": bfs,
+    "dfs": dfs,
+}
+
+# Algorithms that accept (graph, start, goal, heuristic) signature
+HEURISTIC_ALGOS = {"contour_search", "astar", "greedy_best_first_search"}
+
+
+def run_bench(algo_fn: Callable, name: str, graph, start, goal, heuristic) -> Tuple[float, float, float]:
+    for _ in range(WARMUP):
+        if name in HEURISTIC_ALGOS:
+            algo_fn(graph, start, goal, heuristic)
+        else:
+            algo_fn(graph, start, goal)
+
+    times = []
+    for _ in range(RUNS):
+        t0 = time.perf_counter()
+        if name in HEURISTIC_ALGOS:
+            result = algo_fn(graph, start, goal, heuristic)
+        else:
+            result = algo_fn(graph, start, goal)
+        t1 = time.perf_counter()
+        if result is None:
+            raise RuntimeError("returned None (no path found)")
+        times.append((t1 - t0) * 1000)
+    median = statistics.median(times)
+    mean = statistics.mean(times)
+    stdev = statistics.stdev(times) if len(times) > 1 else 0.0
+    return median, mean, stdev
+
+
+def verify_correct(algo_fn, name, graph, start, goal, heuristic, ref_fn) -> bool:
+    """Verify algorithm returns same path cost as reference (contour_search)."""
+    try:
+        if name in HEURISTIC_ALGOS:
+            result = algo_fn(graph, start, goal, heuristic)
+        else:
+            result = algo_fn(graph, start, goal)
+
+        ref = ref_fn(graph, start, goal, heuristic)
+
+        if result is None or ref is None:
+            return result == ref
+
+        # Compare path cost (sum of edge weights)
+        def path_cost(g, path):
+            if not path or len(path) < 2:
+                return 0.0
+            cost = 0.0
+            for i in range(len(path) - 1):
+                for e in g.neighbors(path[i]):
+                    if e.target == path[i + 1]:
+                        cost += e.weight
+                        break
+            return cost
+
+        return abs(path_cost(graph, result) - path_cost(graph, ref)) < 1e-9
+    except Exception:
+        return False
+
+
+def main():
+    print("=" * 90)
+    print("  Algorithm Benchmark: All Single-Source Shortest Path Algorithms")
+    print("=" * 90)
+    print()
+    print(f"  Warmup: {WARMUP} runs  |  Timed: {RUNS} runs")
+    print()
+
+    # Verify correctness first
+    print("  Verifying correctness against contour_search...")
+    all_ok = True
+    for name, (graph, start, goal), heuristic in BENCHMARKS:
+        ref = contour_search(graph, start, goal, heuristic)
+        ref_cost = None
+        if ref:
+            ref_cost = sum(
+                next(e.weight for e in graph.neighbors(ref[i]) if e.target == ref[i + 1])
+                for i in range(len(ref) - 1)
+            )
+
+        for algo_name, algo_fn in ALGORITHMS.items():
+            if algo_name == "contour_search":
+                continue
+            try:
+                if algo_name in HEURISTIC_ALGOS:
+                    r = algo_fn(graph, start, goal, heuristic)
+                else:
+                    r = algo_fn(graph, start, goal)
+                if r:
+                    cost = sum(
+                        next(e.weight for e in graph.neighbors(r[i]) if e.target == r[i + 1])
+                        for i in range(len(r) - 1)
+                    )
+                    ok = abs(cost - ref_cost) < 1e-9
+                else:
+                    ok = ref is None
+                if not ok:
+                    print(f"    FAIL: {algo_name} on {name} (cost mismatch)")
+                    all_ok = False
+            except Exception as e:
+                print(f"    FAIL: {algo_name} on {name}: {e}")
+                all_ok = False
+    if all_ok:
+        print("  All algorithms pass correctness check!")
+    else:
+        print("  WARNING: Some algorithms failed correctness!")
+    print()
+
+    # Run benchmarks
+    print(f"  {'Algorithm':<28} {'Geo-mean':>10} {'Chain_1k':>10} {'Chain_5k':>10} {'Star':>10} {'Grid':>10} {'Dense':>10} {'Score':>10}")
+    print("  " + "-" * 88)
+
+    results: List[Tuple[str, float, Dict[str, Tuple[float, float, float]]]] = []
+    for algo_name, algo_fn in ALGORITHMS.items():
+        bench_times = {}
+        success = True
+        for bench_name, (graph, start, goal), heuristic in BENCHMARKS:
+            try:
+                median, mean, stdev = run_bench(algo_fn, algo_name, graph, start, goal, heuristic)
+                bench_times[bench_name] = (median, mean, stdev)
+            except Exception as e:
+                print(f"    ERROR: {algo_name} on {bench_name}: {e}")
+                bench_times[bench_name] = (float('inf'), float('inf'), 0.0)
+                success = False
+
+        if success:
+            medians = [bench_times[b][0] for b in [b[0] for b in BENCHMARKS]]
+            geo = math.exp(statistics.fmean(math.log(m) for m in medians))
+            score = 1.0 / (geo / 1000)  # geo is in ms, convert to seconds
+            results.append((algo_name, geo, bench_times, score))
+
+    # Sort by geo-mean (ascending = faster)
+    results.sort(key=lambda x: x[1])
+
+    for algo_name, geo, bt, score in results:
+        chain1k = bt.get("chain_1k", (0,0,0))[0]
+        chain5k = bt.get("chain_5k", (0,0,0))[0]
+        star = bt.get("star_500", (0,0,0))[0]
+        grid = bt.get("grid_2500", (0,0,0))[0]
+        dense = bt.get("dense_80", (0,0,0))[0]
+        print(f"  {algo_name:<28} {geo:>8.4f}ms {chain1k:>8.3f}ms {chain5k:>8.3f}ms {star:>8.3f}ms {grid:>8.3f}ms {dense:>8.3f}ms {score:>8.0f}")
+
+    print()
+    print(f"  Best: {results[0][0]} ({results[0][1]:.4f}ms geo-mean)")
+
+    # Relative comparison
+    print()
+    print("  Relative to contour_search:")
+    print(f"  {'Algorithm':<28} {'× slower':>10}")
+    print("  " + "-" * 40)
+    ref_geo = next(r[1] for r in results if r[0] == "contour_search")
+    for algo_name, geo, bt, score in results:
+        ratio = geo / ref_geo if ref_geo > 0 else float('inf')
+        if algo_name == "contour_search":
+            print(f"  {algo_name:<28} {ratio:>8.2f}x  (reference)")
+        else:
+            pct = (ratio - 1) * 100
+            print(f"  {algo_name:<28} {ratio:>8.2f}x  (+{pct:.0f}%)")
+
+
+if __name__ == "__main__":
+    main()
