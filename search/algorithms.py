@@ -556,10 +556,12 @@ def contour_search(
     visited: Set[str] = set()
     g_score: Dict[str, float] = {start: 0.0}
     pred: Dict[str, str] = {}
+    current_min = f_start
 
     while buckets:
-        min_f = min(buckets.keys())
-        entries = buckets.pop(min_f)
+        if current_min not in buckets:
+            current_min = min(buckets.keys())
+        entries = buckets.pop(current_min)
         for node in entries:
             if node in visited:
                 continue
@@ -580,6 +582,8 @@ def contour_search(
                     g_score[nxt] = new_g
                     pred[nxt] = node
                     new_f = round(new_g + heuristic(nxt, goal), precision)
+                    if new_f < current_min:
+                        current_min = new_f
                     buckets.setdefault(new_f, []).append(nxt)
     return None
 
