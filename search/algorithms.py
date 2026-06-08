@@ -540,41 +540,6 @@ def dijkstra(graph: Graph, start: str, goal: str) -> Optional[List[str]]:
     return None
 
 
-def bucket_astar(
-    graph: Graph,
-    start: str,
-    goal: str,
-    heuristic: Callable[[str, str], float] = lambda a, b: 0.0,
-    precision: int = 1,
-) -> Optional[List[str]]:
-    if start not in graph.adjacency or goal not in graph.adjacency:
-        return None
-
-    buckets: Dict[float, List[tuple]] = {}
-    f_start = round(heuristic(start, goal), precision)
-    buckets.setdefault(f_start, []).append((0.0, start, [start]))
-    visited: Set[str] = set()
-
-    while buckets:
-        min_f = min(buckets.keys())
-        entries = buckets.pop(min_f)
-
-        for g, node, path in entries:
-            if node in visited:
-                continue
-            if node == goal:
-                return path
-            visited.add(node)
-
-            for edge in graph.neighbors(node):
-                if edge.target not in visited:
-                    new_g = g + edge.weight
-                    new_f = round(new_g + heuristic(edge.target, goal), precision)
-                    buckets.setdefault(new_f, []).append((new_g, edge.target, [*path, edge.target]))
-
-    return None
-
-
 def contour_search(
     graph: Graph,
     start: str,
@@ -587,26 +552,35 @@ def contour_search(
 
     buckets: Dict[float, List] = {}
     f_start = round(heuristic(start, goal), precision)
-    buckets.setdefault(f_start, []).append((0.0, start, [start]))
+    buckets.setdefault(f_start, []).append(start)
     visited: Set[str] = set()
+    g_score: Dict[str, float] = {start: 0.0}
+    pred: Dict[str, str] = {}
 
     while buckets:
         min_f = min(buckets.keys())
         entries = buckets.pop(min_f)
-
-        for g, node, path in entries:
+        for node in entries:
             if node in visited:
                 continue
             if node == goal:
-                return path
+                path = [goal]
+                while node in pred:
+                    node = pred[node]
+                    path.append(node)
+                return path[::-1]
             visited.add(node)
-
+            g = g_score[node]
             for edge in graph.neighbors(node):
-                if edge.target not in visited:
-                    new_g = g + edge.weight
-                    new_f = round(new_g + heuristic(edge.target, goal), precision)
-                    buckets.setdefault(new_f, []).append((new_g, edge.target, [*path, edge.target]))
-
+                nxt = edge.target
+                if nxt in visited:
+                    continue
+                new_g = g + edge.weight
+                if new_g < g_score.get(nxt, float("inf")):
+                    g_score[nxt] = new_g
+                    pred[nxt] = node
+                    new_f = round(new_g + heuristic(nxt, goal), precision)
+                    buckets.setdefault(new_f, []).append(nxt)
     return None
 
 

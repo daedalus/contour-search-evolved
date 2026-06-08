@@ -9,7 +9,6 @@ from search.algorithms import (
     bfs,
     bidirectional_bfs,
     bidirectional_dijkstra,
-    bucket_astar,
     contour_search,
     dag_shortest_path,
     dfs,
@@ -513,109 +512,6 @@ class TestAStar:
 
 
 # ---------------------------------------------------------------------------
-# Bucket A*
-# ---------------------------------------------------------------------------
-
-class TestBucketAStar:
-    def test_finds_path(self, weighted_graph: Graph):
-        path = bucket_astar(weighted_graph, "A", "F")
-        assert path is not None
-        assert path[0] == "A"
-        assert path[-1] == "F"
-
-    def test_matches_astar_default_precision(self, weighted_graph: Graph):
-        ba = bucket_astar(weighted_graph, "A", "F")
-        a = astar(weighted_graph, "A", "F")
-        assert ba == a
-
-    def test_matches_astar_fine_precision(self, weighted_graph: Graph):
-        ba = bucket_astar(weighted_graph, "A", "F", precision=3)
-        a = astar(weighted_graph, "A", "F")
-        assert ba == a
-
-    def test_coarse_precision_still_correct(self, weighted_graph: Graph):
-        ba = bucket_astar(weighted_graph, "A", "D", precision=0)
-        cost = sum(
-            next(e.weight for e in weighted_graph.neighbors(ba[i]) if e.target == ba[i + 1])
-            for i in range(len(ba) - 1)
-        )
-        assert cost == 8
-
-    def test_no_path(self, disconnected_graph: Graph):
-        assert bucket_astar(disconnected_graph, "A", "C") is None
-
-    def test_same_node(self, weighted_graph: Graph):
-        assert bucket_astar(weighted_graph, "A", "A") == ["A"]
-
-    def test_missing_goal(self, weighted_graph: Graph):
-        assert bucket_astar(weighted_graph, "A", "Z") is None
-
-    def test_missing_start(self, weighted_graph: Graph):
-        assert bucket_astar(weighted_graph, "Z", "A") is None
-
-    def test_both_missing(self, weighted_graph: Graph):
-        assert bucket_astar(weighted_graph, "Z", "Z") is None
-
-    def test_empty_graph(self, empty_graph: Graph):
-        assert bucket_astar(empty_graph, "A", "B") is None
-
-    def test_single_node_same(self, single_node_graph: Graph):
-        assert bucket_astar(single_node_graph, "A", "A") == ["A"]
-
-    def test_two_nodes_direct(self, two_node_graph: Graph):
-        assert bucket_astar(two_node_graph, "X", "Y") == ["X", "Y"]
-
-    def test_cycle_does_not_loop(self, cyclic_graph: Graph):
-        path = bucket_astar(cyclic_graph, "A", "C")
-        assert path is not None
-
-    def test_zero_weight_edges(self, zero_weight_graph: Graph):
-        path = bucket_astar(zero_weight_graph, "A", "C")
-        assert path is not None
-
-    def test_start_not_in_graph(self):
-        g = Graph()
-        g.add_edge("B", "C")
-        assert bucket_astar(g, "A", "C") is None
-
-    def test_goal_not_in_graph(self):
-        g = Graph()
-        g.add_edge("A", "B")
-        assert bucket_astar(g, "A", "C") is None
-
-    def test_heuristic_improves_performance(self):
-        g = Graph()
-        for i in range(200):
-            g.add_edge(str(i), str(i + 1), weight=1, bidirectional=False)
-
-        t0 = time.perf_counter()
-        bucket_astar(g, "0", "200", heuristic=lambda a, b: 0, precision=0)
-        t_no_heuristic = time.perf_counter() - t0
-
-        t0 = time.perf_counter()
-        bucket_astar(g, "0", "200", heuristic=lambda a, b: abs(int(a) - int(b)), precision=0)
-        t_with_heuristic = time.perf_counter() - t0
-
-        assert t_with_heuristic <= t_no_heuristic * 1.1 + 0.01
-
-    def test_admissible_heuristic_optimal_path(self):
-        g = Graph()
-        for i in range(10):
-            g.add_edge(str(i), str(i + 1), weight=2, bidirectional=False)
-
-        h = lambda a, b: abs(int(a) - int(b))
-        dij_path = dijkstra(g, "0", "10")
-        ba_path = bucket_astar(g, "0", "10", heuristic=h)
-        assert ba_path == dij_path
-
-    def test_different_precision_still_finds_path(self, star_graph: Graph):
-        path = bucket_astar(star_graph, "center", "499", precision=2)
-        assert path is not None
-        assert path[0] == "center"
-        assert path[-1] == "499"
-
-
-# ---------------------------------------------------------------------------
 # Contour Search
 # ---------------------------------------------------------------------------
 
@@ -674,10 +570,10 @@ class TestContourSearch:
         cs_path = contour_search(g, "0", "10", heuristic=h)
         assert cs_path == dij_path
 
-    def test_matches_bucket_astar(self, weighted_graph: Graph):
-        cs = contour_search(weighted_graph, "A", "F", precision=1)
-        ba = bucket_astar(weighted_graph, "A", "F", precision=1)
-        assert cs == ba
+    def test_matches_self_with_different_precision(self, weighted_graph: Graph):
+        cs1 = contour_search(weighted_graph, "A", "F", precision=1)
+        cs3 = contour_search(weighted_graph, "A", "F", precision=3)
+        assert cs1 == cs3
 
 
 # ---------------------------------------------------------------------------
