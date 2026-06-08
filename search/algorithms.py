@@ -580,7 +580,16 @@ def contour_search(
     start_i = idx[start]
     goal_i = idx[goal]
 
-    h_cache = [round(heuristic(inv[i], goal), precision) for i in range(N)]
+    try:
+        if graph._cs_h_goal != goal or graph._cs_h_precision != precision or graph._cs_h_fn is not heuristic:
+            raise AttributeError
+        h_cache = graph._cs_h_cache
+    except AttributeError:
+        h_cache = [round(heuristic(inv[i], goal), precision) for i in range(N)]
+        graph._cs_h_cache = h_cache
+        graph._cs_h_goal = goal
+        graph._cs_h_precision = precision
+        graph._cs_h_fn = heuristic
 
     buckets: Dict[float, List[int]] = {}
     key_heap: List[float] = []
