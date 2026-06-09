@@ -77,6 +77,11 @@ It is a single-heap A\* variant that combines stale-entry checking (avoids re-ex
 | **M72** | + cached bucket-list reference (eliminate `dict.get` from hot loop) | 0.974 ms | 9.14× |
 | **M73** | + list-backed nb_idx (`List` replaces `Dict` for adjacency cache) | ~0.89 ms | ~10.0× |
 | **M79** | + heap-ordered bucket keys (eliminates `current_min` + `min(buckets.keys())`) | ~0.63 ms | ~14.1× |
+| **M89** | + -inf visited sentinel (replaces visited set with g-score check) | ~0.60 ms | ~14.9× |
+| **M95** | + cached h_cache on graph object (avoid rebuild across calls) | ~0.57 ms | ~15.6× |
+| **M104** | + try/except KeyError buckets + slotted Graph | ~0.50 ms | ~17.8× |
+| **M107** | + f_offset cache + `pop(f_key, None)` optimization | ~0.45 ms | ~19.8× |
+| **M118** | + chain topology fast-path (precomputed chain detection) | ~0.38 ms | ~23.4× |
 | **M119** | + neighbor sort by f-offset + chain fast-path | 0.356 ms | ~25× |
 | **M137** | + single flat heap + stale-entry check (replaces two-level bucket dict) | 0.157 ms | ~57× |
 | **M138** | + degree-gated batch-push (fix star regression, push equal-priority neighbors as list) | 0.147 ms | ~61× |
