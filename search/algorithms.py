@@ -652,29 +652,91 @@ def contour_search(
     heap = [(f_start, 0.0, start_i)]
 
     while heap:
-        f_key, neg_g, node_i = heapq.heappop(heap)
+        f_key, neg_g, entry = heapq.heappop(heap)
         g = -neg_g
 
-        if g != g_score[node_i]:
-            continue
-
-        if node_i == goal_i:
-            path = [inv[goal_i]]
-            cur = node_i
-            while pred[cur] != -1:
-                cur = pred[cur]
-                path.append(inv[cur])
-            return path[::-1]
-
-        g_score[node_i] = VISITED
-
-        for nxt_i, wt, f_offset in nb_f_offset[node_i]:
-            new_g = g + wt
-            if new_g < g_score[nxt_i]:
-                g_score[nxt_i] = new_g
-                pred[nxt_i] = node_i
-                new_f = g + f_offset
-                heapq.heappush(heap, (new_f, -new_g, nxt_i))
+        if isinstance(entry, list):
+            for node_i in entry:
+                if g != g_score[node_i]:
+                    continue
+                if node_i == goal_i:
+                    path = [inv[goal_i]]
+                    cur = node_i
+                    while pred[cur] != -1:
+                        cur = pred[cur]
+                        path.append(inv[cur])
+                    return path[::-1]
+                g_score[node_i] = VISITED
+                nb_entries = nb_f_offset[node_i]
+                if len(nb_entries) > 4:
+                    _batch_f = None
+                    _batch_g = None
+                    _batch_list = None
+                    for nxt_i, wt, f_offset in nb_entries:
+                        new_g = g + wt
+                        if new_g < g_score[nxt_i]:
+                            g_score[nxt_i] = new_g
+                            pred[nxt_i] = node_i
+                            new_f = g + f_offset
+                            if _batch_f == new_f and _batch_g == new_g:
+                                _batch_list.append(nxt_i)
+                            else:
+                                if _batch_list is not None:
+                                    heapq.heappush(heap, (_batch_f, -_batch_g, _batch_list))
+                                _batch_f = new_f
+                                _batch_g = new_g
+                                _batch_list = [nxt_i]
+                    if _batch_list is not None:
+                        heapq.heappush(heap, (_batch_f, -_batch_g, _batch_list))
+                else:
+                    for nxt_i, wt, f_offset in nb_entries:
+                        new_g = g + wt
+                        if new_g < g_score[nxt_i]:
+                            g_score[nxt_i] = new_g
+                            pred[nxt_i] = node_i
+                            new_f = g + f_offset
+                            heapq.heappush(heap, (new_f, -new_g, nxt_i))
+        else:
+            node_i = entry
+            if g != g_score[node_i]:
+                continue
+            if node_i == goal_i:
+                path = [inv[goal_i]]
+                cur = node_i
+                while pred[cur] != -1:
+                    cur = pred[cur]
+                    path.append(inv[cur])
+                return path[::-1]
+            g_score[node_i] = VISITED
+            nb_entries = nb_f_offset[node_i]
+            if len(nb_entries) > 4:
+                _batch_f = None
+                _batch_g = None
+                _batch_list = None
+                for nxt_i, wt, f_offset in nb_entries:
+                    new_g = g + wt
+                    if new_g < g_score[nxt_i]:
+                        g_score[nxt_i] = new_g
+                        pred[nxt_i] = node_i
+                        new_f = g + f_offset
+                        if _batch_f == new_f and _batch_g == new_g:
+                            _batch_list.append(nxt_i)
+                        else:
+                            if _batch_list is not None:
+                                heapq.heappush(heap, (_batch_f, -_batch_g, _batch_list))
+                            _batch_f = new_f
+                            _batch_g = new_g
+                            _batch_list = [nxt_i]
+                if _batch_list is not None:
+                    heapq.heappush(heap, (_batch_f, -_batch_g, _batch_list))
+            else:
+                for nxt_i, wt, f_offset in nb_entries:
+                    new_g = g + wt
+                    if new_g < g_score[nxt_i]:
+                        g_score[nxt_i] = new_g
+                        pred[nxt_i] = node_i
+                        new_f = g + f_offset
+                        heapq.heappush(heap, (new_f, -new_g, nxt_i))
 
     return None
 
