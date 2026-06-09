@@ -1,4 +1,4 @@
-# hybrid-graph-search
+# contour-search-evolved
 
 17 graph search and shortest-path algorithms with a common `Optional[List[str]]` interface, plus evolutionary optimization of `contour_search` via AlphaEvolve.
 
