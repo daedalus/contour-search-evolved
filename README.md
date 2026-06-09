@@ -78,8 +78,10 @@ pytest tests/ -q    # 262 tests (203 original + 59 contour-search stress tests)
 | **M119** | + neighbor sort by f-offset + chain fast-path | 0.356 ms | ~25× |
 | **M137** | + single flat heap + stale-entry check (replaces two-level bucket dict) | 0.157 ms | ~57× |
 | **M138** | + degree-gated batch-push (fix star regression, push equal-priority neighbors as list) | 0.147 ms | ~61× |
+| **M140** | + goal-first batch ordering (O(1) goal detection in batch) | ~0.127 ms | ~70× |
+| **M146** | + inline single expansion + degree-bounded batch dispatch | ~0.143 ms | ~62× |
 
-Current champion (`M138`): geo-mean 0.147ms, score ~6900. 262 tests passing.
+Current champion (`M146`): geo-mean ~0.14ms (chain_1k=0.29, chain_5k=1.59, star_500=0.057, grid_2500=0.091, dense_80=0.025), score ~7000, 262 tests passing. Further mutations are at the noise floor (~5–8% measurement stdev), making optimizations below ~10% unreliable.
 
 M61 converts `Edge` objects to `(target, weight)` tuples once (lazily cached on the graph object via `graph._cs_nb`), replacing `edge.target`/`edge.weight` `__dict__` lookups with C-level tuple unpacking in the hot loop. The cache is invalidated on graph mutation (`add_edge` deletes `_cs_*` attributes, triggering a rebuild on the next call).
 
@@ -114,11 +116,11 @@ The common pattern: every ≥1.15× win removed either a **hash-table operation*
 ## Benchmarks (median, ms)
 
 ```
-                        chain_1k  chain_5k  star_500  grid_2500  dense_80
-contour_search            0.252     1.250     0.109     0.076     0.022
-dag_shortest_path         0.198     1.093     0.095     0.852     0.341
-bidir_bfs                 0.283     1.638     0.036     0.746     0.006
-spfa                      0.600     3.277     0.267     2.018     0.491
+                     chain_1k  chain_5k  star_500  grid_2500  dense_80
+contour_search          0.293     1.586     0.057     0.091     0.025
+dag_shortest_path       0.198     1.093     0.095     0.852     0.341
+bidir_bfs               0.283     1.638     0.036     0.746     0.006
+spfa                    0.600     3.277     0.267     2.018     0.491
 ```
 
 Full benchmark: `python benchmarks/run.py`
@@ -127,5 +129,5 @@ Evolution framework in `alphaevolve/`:
 - `evaluator.py` — benchmark harness (5 graph topologies, geo-mean scoring)
 - `mutations.py` — programmatic variants M0–M7
 - `evolve.py` — LLM-driven evolutionary loop
-- `candidates/` — historical candidates (M74–M138)
+- `candidates/` — historical candidates (M74–M146)
 - `benchmark_all.py` — full comparison of 9 single-source algorithms
