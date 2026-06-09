@@ -164,20 +164,57 @@ def load_candidate_from_file(filepath: str) -> Callable:
     return extract_algorithm(code)
 
 
-if __name__ == "__main__":
+def compare_with_baseline(candidate_path: str):
     from search.algorithms import contour_search as baseline
 
-    print("Evaluating baseline contour_search...")
-    score = evaluate_candidate(baseline)
-    details = evaluate_candidate_detailed(baseline)
-    print(f"Baseline score: {score:.6f}")
-    print(f"Baseline geo-mean runtime: {1.0/score*1000:.4f}ms")
+    candidate_fn = load_candidate_from_file(candidate_path)
+
+    print("Baseline contour_search:")
+    base_score = evaluate_candidate(baseline)
+    base_details = evaluate_candidate_detailed(baseline)
+    print(f"  Score: {base_score:.6f}  Geo-mean: {1.0/base_score*1000:.4f}ms" if base_score > 0 else "  FAILED")
+
     print()
-    for name, d in details.items():
+    print("Candidate M115 (parent-pruning):")
+    cand_score = evaluate_candidate(candidate_fn)
+    cand_details = evaluate_candidate_detailed(candidate_fn)
+    print(f"  Score: {cand_score:.6f}  Geo-mean: {1.0/cand_score*1000:.4f}ms" if cand_score > 0 else "  FAILED")
+
+    if base_score > 0 and cand_score > 0:
+        diff = (cand_score - base_score) / base_score * 100
+        print()
+        print(f"Change: {diff:+.2f}%")
+        if diff > 1.0:
+            print("PROMOTED! (+>1%)")
+        elif diff < -1.0:
+            print("REJECTED (<-1%)")
+        else:
+            print("WASH (within ±1%)")
+
+
+def print_benchmark_details(details: Dict):
+    bench_names_list = [b[0] for b in BENCHMARKS]
+    for name in bench_names_list:
+        d = details.get(name, {})
         if "error" in d:
             print(f"  {name}: ERROR {d['error']}")
-        else:
+        elif isinstance(d, dict):
             print(f"  {name}: median={d['median_ms']:.3f}ms  mean={d['mean_ms']:.3f}ms  "
                   f"stddev={d['stdev_ms']:.3f}ms  cv={d['cv']:.3f}")
     if "total_mean_ms" in details:
-        print(f"\n  Overall mean: {details['total_mean_ms']:.3f}ms")
+        print(f"  Overall mean: {details['total_mean_ms']:.3f}ms")
+
+
+if __name__ == "__main__":
+    import sys
+    if len(sys.argv) > 1:
+        compare_with_baseline(sys.argv[1])
+    else:
+        from search.algorithms import contour_search as baseline
+        print("Evaluating baseline contour_search...")
+        score = evaluate_candidate(baseline)
+        details = evaluate_candidate_detailed(baseline)
+        print(f"Baseline score: {score:.6f}")
+        print(f"Baseline geo-mean runtime: {1.0/score*1000:.4f}ms")
+        print()
+        print_benchmark_details(details)

@@ -1,37 +1,18 @@
+"""
+M112: Separate new_f == f_key from new_f == _last_f check.
+
+When _last_f has been updated to a different f value (from a previous
+node's expansion), subsequent nodes with neighbors still in the current
+f_key contour benefit by appending directly to entries (extending the
+current for-loop iteration) instead of creating a new bucket.
+
+Champion uses _last_f alone which starts as f_key but drifts away.
+M112 catches f_key explicitly with `elif new_f == f_key`.
+"""
+
 from typing import Callable, Dict, List, Optional
 import heapq
 from search.graph import Graph
-
-
-def _is_chain(nb_idx) -> bool:
-    deg1 = 0
-    for nb in nb_idx:
-        d = len(nb)
-        if d > 2:
-            return False
-        if d == 1:
-            deg1 += 1
-    return deg1 == 2
-
-
-def _chain_search(start_i: int, goal_i: int, nb_idx, inv) -> Optional[List[str]]:
-    path = [inv[start_i]]
-    prev = -1
-    cur = start_i
-    while cur != goal_i:
-        found = False
-        for nxt_i, wt in nb_idx[cur]:
-            if wt == float('inf'):
-                continue
-            if nxt_i != prev:
-                prev = cur
-                cur = nxt_i
-                path.append(inv[cur])
-                found = True
-                break
-        if not found:
-            return None
-    return path
 
 
 def contour_search(
@@ -66,14 +47,6 @@ def contour_search(
     N = len(inv)
     start_i = idx[start]
     goal_i = idx[goal]
-
-    is_chain = graph._cs_is_chain
-    if is_chain is None:
-        is_chain = _is_chain(nb_idx)
-        graph._cs_is_chain = is_chain
-
-    if is_chain:
-        return _chain_search(start_i, goal_i, nb_idx, inv)
 
     h_cache = graph._cs_h_cache
     if h_cache is None or graph._cs_h_goal != goal or graph._cs_h_precision != precision or graph._cs_h_fn is not heuristic:
@@ -134,6 +107,8 @@ def contour_search(
                     new_f = g + f_offset
                     if new_f == _last_f:
                         _last_list.append(nxt_i)
+                    elif new_f == f_key:
+                        entries.append(nxt_i)
                     else:
                         try:
                             _last_list = buckets[new_f]

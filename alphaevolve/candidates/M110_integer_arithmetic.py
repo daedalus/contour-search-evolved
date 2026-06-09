@@ -3,37 +3,6 @@ import heapq
 from search.graph import Graph
 
 
-def _is_chain(nb_idx) -> bool:
-    deg1 = 0
-    for nb in nb_idx:
-        d = len(nb)
-        if d > 2:
-            return False
-        if d == 1:
-            deg1 += 1
-    return deg1 == 2
-
-
-def _chain_search(start_i: int, goal_i: int, nb_idx, inv) -> Optional[List[str]]:
-    path = [inv[start_i]]
-    prev = -1
-    cur = start_i
-    while cur != goal_i:
-        found = False
-        for nxt_i, wt in nb_idx[cur]:
-            if wt == float('inf'):
-                continue
-            if nxt_i != prev:
-                prev = cur
-                cur = nxt_i
-                path.append(inv[cur])
-                found = True
-                break
-        if not found:
-            return None
-    return path
-
-
 def contour_search(
     graph: Graph,
     start: str,
@@ -58,7 +27,10 @@ def contour_search(
         graph._cs_idx = idx
         graph._cs_inv = inv
         graph._cs_nb_idx = nb_idx
-        graph._cs_nb_f_offset = None
+        graph._cs_h_cache = None
+        graph._cs_h_goal = ""
+        graph._cs_h_precision = 0
+        graph._cs_h_fn = None
     else:
         nb_idx = graph._cs_nb_idx
         inv = graph._cs_inv
@@ -67,39 +39,55 @@ def contour_search(
     start_i = idx[start]
     goal_i = idx[goal]
 
-    is_chain = graph._cs_is_chain
-    if is_chain is None:
-        is_chain = _is_chain(nb_idx)
-        graph._cs_is_chain = is_chain
-
-    if is_chain:
-        return _chain_search(start_i, goal_i, nb_idx, inv)
+    # Integer-only path: scale everything by 10**precision
+    SCALE = 10 ** precision
 
     h_cache = graph._cs_h_cache
     if h_cache is None or graph._cs_h_goal != goal or graph._cs_h_precision != precision or graph._cs_h_fn is not heuristic:
-        h_cache = [round(heuristic(inv[i], goal), precision) for i in range(N)]
+        h_cache_float = [heuristic(inv[i], goal) for i in range(N)]
+        # Store rounded scaled ints
+        h_cache = [int(h_cache_float[i] * SCALE + (0.5 if h_cache_float[i] >= 0 else -0.5)) for i in range(N)]
         graph._cs_h_cache = h_cache
         graph._cs_h_goal = goal
         graph._cs_h_precision = precision
         graph._cs_h_fn = heuristic
-        nb_f_offset = [[(nxt_i, wt, wt + h_cache[nxt_i]) for nxt_i, wt in nb] for nb in nb_idx]
-        graph._cs_nb_f_offset = nb_f_offset
+        # Pre-compute scaled neighbor data: (nxt_i, wt_scaled, f_offset_scaled)
+        nb_data = [None] * N
+        for node_i in range(N):
+            nb = nb_idx[node_i]
+            nb_data[node_i] = [
+                (nxt_i,
+                 int(wt * SCALE + (0.5 if wt >= 0 else -0.5)),
+                 int(wt * SCALE + (0.5 if wt >= 0 else -0.5)) + h_cache[nxt_i])
+                for nxt_i, wt in nb
+            ]
+        graph._cs_nb_data = nb_data
     else:
-        nb_f_offset = graph._cs_nb_f_offset
-        if nb_f_offset is None:
-            nb_f_offset = [[(nxt_i, wt, wt + h_cache[nxt_i]) for nxt_i, wt in nb] for nb in nb_idx]
-            graph._cs_nb_f_offset = nb_f_offset
+        nb_data = graph._cs_nb_data
+        if nb_data is None:
+            h_cache_float = [heuristic(inv[i], goal) for i in range(N)]
+            nb_data = [None] * N
+            for node_i in range(N):
+                nb = nb_idx[node_i]
+                nb_data[node_i] = [
+                    (nxt_i,
+                     int(wt * SCALE + (0.5 if wt >= 0 else -0.5)),
+                     int(wt * SCALE + (0.5 if wt >= 0 else -0.5)) + h_cache[nxt_i])
+                    for nxt_i, wt in nb
+                ]
+            graph._cs_nb_data = nb_data
 
-    buckets: Dict[float, List[int]] = {}
-    key_heap: List[float] = []
+    BIG = 10 ** 12
+    g_score = [BIG] * N
+    g_score[start_i] = 0
+    pred = [-1] * N
+    VISITED = -1
+
+    buckets: Dict[int, List[int]] = {}
+    key_heap: List[int] = []
     f_start = h_cache[start_i]
     buckets[f_start] = [start_i]
     heapq.heappush(key_heap, f_start)
-
-    g_score = [float('inf')] * N
-    g_score[start_i] = 0.0
-    pred = [-1] * N
-    VISITED = float('-inf')
 
     _last_f = f_start
     _last_list = buckets[f_start]
@@ -126,8 +114,8 @@ def contour_search(
 
             g_score[node_i] = VISITED
 
-            for nxt_i, wt, f_offset in nb_f_offset[node_i]:
-                new_g = g + wt
+            for nxt_i, wt_scaled, f_offset in nb_data[node_i]:
+                new_g = g + wt_scaled
                 if new_g < g_score[nxt_i]:
                     g_score[nxt_i] = new_g
                     pred[nxt_i] = node_i

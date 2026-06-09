@@ -1,37 +1,14 @@
+"""
+M113: Sort neighbors by f_offset during cache construction.
+
+Processing neighbors in ascending order of f_offset visits the most
+promising paths first, which can reduce the number of expansions
+before reaching the goal.
+"""
+
 from typing import Callable, Dict, List, Optional
 import heapq
 from search.graph import Graph
-
-
-def _is_chain(nb_idx) -> bool:
-    deg1 = 0
-    for nb in nb_idx:
-        d = len(nb)
-        if d > 2:
-            return False
-        if d == 1:
-            deg1 += 1
-    return deg1 == 2
-
-
-def _chain_search(start_i: int, goal_i: int, nb_idx, inv) -> Optional[List[str]]:
-    path = [inv[start_i]]
-    prev = -1
-    cur = start_i
-    while cur != goal_i:
-        found = False
-        for nxt_i, wt in nb_idx[cur]:
-            if wt == float('inf'):
-                continue
-            if nxt_i != prev:
-                prev = cur
-                cur = nxt_i
-                path.append(inv[cur])
-                found = True
-                break
-        if not found:
-            return None
-    return path
 
 
 def contour_search(
@@ -67,14 +44,6 @@ def contour_search(
     start_i = idx[start]
     goal_i = idx[goal]
 
-    is_chain = graph._cs_is_chain
-    if is_chain is None:
-        is_chain = _is_chain(nb_idx)
-        graph._cs_is_chain = is_chain
-
-    if is_chain:
-        return _chain_search(start_i, goal_i, nb_idx, inv)
-
     h_cache = graph._cs_h_cache
     if h_cache is None or graph._cs_h_goal != goal or graph._cs_h_precision != precision or graph._cs_h_fn is not heuristic:
         h_cache = [round(heuristic(inv[i], goal), precision) for i in range(N)]
@@ -82,12 +51,18 @@ def contour_search(
         graph._cs_h_goal = goal
         graph._cs_h_precision = precision
         graph._cs_h_fn = heuristic
-        nb_f_offset = [[(nxt_i, wt, wt + h_cache[nxt_i]) for nxt_i, wt in nb] for nb in nb_idx]
+        nb_f_offset = [
+            sorted([(nxt_i, wt, wt + h_cache[nxt_i]) for nxt_i, wt in nb], key=lambda t: t[2])
+            for nb in nb_idx
+        ]
         graph._cs_nb_f_offset = nb_f_offset
     else:
         nb_f_offset = graph._cs_nb_f_offset
         if nb_f_offset is None:
-            nb_f_offset = [[(nxt_i, wt, wt + h_cache[nxt_i]) for nxt_i, wt in nb] for nb in nb_idx]
+            nb_f_offset = [
+                sorted([(nxt_i, wt, wt + h_cache[nxt_i]) for nxt_i, wt in nb], key=lambda t: t[2])
+                for nb in nb_idx
+            ]
             graph._cs_nb_f_offset = nb_f_offset
 
     buckets: Dict[float, List[int]] = {}

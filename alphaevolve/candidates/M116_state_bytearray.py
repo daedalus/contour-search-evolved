@@ -1,37 +1,18 @@
+"""
+M116: 3-state bytearray (unreached/queued/expanded).
+
+State bytearray eliminates two float comparisons per neighbor:
+  - state=0 (first-time): skip new_g < g_score (always True vs INF)
+  - state=2 (back-edge): skip entire body (already expanded)
+  - state=1 (re-entry): keep new_g < g_score for re-improvement check
+
+Bytearray subscript is cheaper than list-of-floats subscript because it
+returns a cached small int (0,1,2) instead of a heap-allocated float.
+"""
+
 from typing import Callable, Dict, List, Optional
 import heapq
 from search.graph import Graph
-
-
-def _is_chain(nb_idx) -> bool:
-    deg1 = 0
-    for nb in nb_idx:
-        d = len(nb)
-        if d > 2:
-            return False
-        if d == 1:
-            deg1 += 1
-    return deg1 == 2
-
-
-def _chain_search(start_i: int, goal_i: int, nb_idx, inv) -> Optional[List[str]]:
-    path = [inv[start_i]]
-    prev = -1
-    cur = start_i
-    while cur != goal_i:
-        found = False
-        for nxt_i, wt in nb_idx[cur]:
-            if wt == float('inf'):
-                continue
-            if nxt_i != prev:
-                prev = cur
-                cur = nxt_i
-                path.append(inv[cur])
-                found = True
-                break
-        if not found:
-            return None
-    return path
 
 
 def contour_search(
@@ -67,14 +48,6 @@ def contour_search(
     start_i = idx[start]
     goal_i = idx[goal]
 
-    is_chain = graph._cs_is_chain
-    if is_chain is None:
-        is_chain = _is_chain(nb_idx)
-        graph._cs_is_chain = is_chain
-
-    if is_chain:
-        return _chain_search(start_i, goal_i, nb_idx, inv)
-
     h_cache = graph._cs_h_cache
     if h_cache is None or graph._cs_h_goal != goal or graph._cs_h_precision != precision or graph._cs_h_fn is not heuristic:
         h_cache = [round(heuristic(inv[i], goal), precision) for i in range(N)]
@@ -99,7 +72,8 @@ def contour_search(
     g_score = [float('inf')] * N
     g_score[start_i] = 0.0
     pred = [-1] * N
-    VISITED = float('-inf')
+    state = bytearray(N)
+    state[start_i] = 1
 
     _last_f = f_start
     _last_list = buckets[f_start]
@@ -113,9 +87,10 @@ def contour_search(
         _last_list = entries
 
         for node_i in entries:
-            g = g_score[node_i]
-            if g == VISITED:
+            if state[node_i] != 1:
                 continue
+            state[node_i] = 2
+
             if node_i == goal_i:
                 path = [inv[goal_i]]
                 cur = node_i
@@ -124,13 +99,14 @@ def contour_search(
                     path.append(inv[cur])
                 return path[::-1]
 
-            g_score[node_i] = VISITED
+            g = g_score[node_i]
 
             for nxt_i, wt, f_offset in nb_f_offset[node_i]:
-                new_g = g + wt
-                if new_g < g_score[nxt_i]:
-                    g_score[nxt_i] = new_g
+                sn = state[nxt_i]
+                if sn == 0:
+                    g_score[nxt_i] = g + wt
                     pred[nxt_i] = node_i
+                    state[nxt_i] = 1
                     new_f = g + f_offset
                     if new_f == _last_f:
                         _last_list.append(nxt_i)
@@ -143,5 +119,24 @@ def contour_search(
                             buckets[new_f] = _last_list
                             heapq.heappush(key_heap, new_f)
                         _last_f = new_f
+                elif sn == 2:
+                    continue
+                else:
+                    new_g = g + wt
+                    if new_g < g_score[nxt_i]:
+                        g_score[nxt_i] = new_g
+                        pred[nxt_i] = node_i
+                        new_f = g + f_offset
+                        if new_f == _last_f:
+                            _last_list.append(nxt_i)
+                        else:
+                            try:
+                                _last_list = buckets[new_f]
+                                _last_list.append(nxt_i)
+                            except KeyError:
+                                _last_list = [nxt_i]
+                                buckets[new_f] = _last_list
+                                heapq.heappush(key_heap, new_f)
+                            _last_f = new_f
 
     return None

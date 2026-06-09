@@ -1,37 +1,16 @@
+"""
+M117: Hoist _last_list.append method reference.
+
+Every _last_list.append(nxt_i) in the hot loop calls LOAD_ATTR, which
+allocates a new method-wrapper object.  Hoisting _append = _last_list.append
+outside the loop saves 1 bytecode + 1 PyObject allocation per call.
+
+For chain_5k (5000 neighbor expansions): ~5000 fewer allocations.
+"""
+
 from typing import Callable, Dict, List, Optional
 import heapq
 from search.graph import Graph
-
-
-def _is_chain(nb_idx) -> bool:
-    deg1 = 0
-    for nb in nb_idx:
-        d = len(nb)
-        if d > 2:
-            return False
-        if d == 1:
-            deg1 += 1
-    return deg1 == 2
-
-
-def _chain_search(start_i: int, goal_i: int, nb_idx, inv) -> Optional[List[str]]:
-    path = [inv[start_i]]
-    prev = -1
-    cur = start_i
-    while cur != goal_i:
-        found = False
-        for nxt_i, wt in nb_idx[cur]:
-            if wt == float('inf'):
-                continue
-            if nxt_i != prev:
-                prev = cur
-                cur = nxt_i
-                path.append(inv[cur])
-                found = True
-                break
-        if not found:
-            return None
-    return path
 
 
 def contour_search(
@@ -67,14 +46,6 @@ def contour_search(
     start_i = idx[start]
     goal_i = idx[goal]
 
-    is_chain = graph._cs_is_chain
-    if is_chain is None:
-        is_chain = _is_chain(nb_idx)
-        graph._cs_is_chain = is_chain
-
-    if is_chain:
-        return _chain_search(start_i, goal_i, nb_idx, inv)
-
     h_cache = graph._cs_h_cache
     if h_cache is None or graph._cs_h_goal != goal or graph._cs_h_precision != precision or graph._cs_h_fn is not heuristic:
         h_cache = [round(heuristic(inv[i], goal), precision) for i in range(N)]
@@ -103,6 +74,7 @@ def contour_search(
 
     _last_f = f_start
     _last_list = buckets[f_start]
+    _append = _last_list.append
 
     while key_heap:
         f_key = heapq.heappop(key_heap)
@@ -111,6 +83,7 @@ def contour_search(
             continue
         _last_f = f_key
         _last_list = entries
+        _append = _last_list.append
 
         for node_i in entries:
             g = g_score[node_i]
@@ -133,13 +106,15 @@ def contour_search(
                     pred[nxt_i] = node_i
                     new_f = g + f_offset
                     if new_f == _last_f:
-                        _last_list.append(nxt_i)
+                        _append(nxt_i)
                     else:
                         try:
                             _last_list = buckets[new_f]
-                            _last_list.append(nxt_i)
+                            _append = _last_list.append
+                            _append(nxt_i)
                         except KeyError:
                             _last_list = [nxt_i]
+                            _append = _last_list.append
                             buckets[new_f] = _last_list
                             heapq.heappush(key_heap, new_f)
                         _last_f = new_f
