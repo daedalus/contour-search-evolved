@@ -10,18 +10,23 @@ class Edge:
     weight: float = 1.0
 
 
+@dataclass
+class _ContourCache:
+    idx: Dict[str, int]
+    inv: List[Optional[str]]
+    nb_idx: List[Optional[List]]
+    h_cache: Optional[List[float]] = None
+    h_goal: str = ""
+    h_precision: int = 0
+    h_fn: Optional[Callable] = None
+    nb_f_offset: Optional[List[Optional[List]]] = None
+    is_chain: Optional[bool] = None
+
+
 @dataclass(slots=True)
 class Graph:
     adjacency: Dict[str, List[Edge]] = field(default_factory=dict)
-    _cs_idx: Optional[Dict[str, int]] = None
-    _cs_inv: Optional[List[Optional[str]]] = None
-    _cs_nb_idx: Optional[List[Optional[List]]] = None
-    _cs_h_cache: Optional[List[float]] = None
-    _cs_h_goal: str = ""
-    _cs_h_precision: int = 0
-    _cs_h_fn: Optional[Callable] = None
-    _cs_nb_f_offset: Optional[List[Optional[List]]] = None
-    _cs_is_chain: Optional[bool] = None
+    _cs_cache: Optional[_ContourCache] = None
 
     def add_edge(
         self, u: str, v: str, weight: float = 1.0, bidirectional: bool = True
@@ -31,15 +36,7 @@ class Graph:
             self.adjacency.setdefault(v, []).append(Edge(u, weight))
         self.adjacency.setdefault(v, [])
         self.adjacency.setdefault(u, [])
-        self._cs_idx = None
-        self._cs_inv = None
-        self._cs_nb_idx = None
-        self._cs_h_cache = None
-        self._cs_h_goal = ""
-        self._cs_h_precision = 0
-        self._cs_h_fn = None
-        self._cs_nb_f_offset = None
-        self._cs_is_chain = None
+        self._cs_cache = None
 
     def neighbors(self, node: str) -> List[Edge]:
         return self.adjacency.get(node, [])

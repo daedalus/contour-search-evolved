@@ -88,6 +88,8 @@ It is a single-heap A\* variant that combines stale-entry checking (avoids re-ex
 | **M140** | + goal-first batch ordering (O(1) goal detection in batch) | ~0.127 ms | ~70× |
 | **M146** | + inline single expansion + degree-bounded batch dispatch | ~0.143 ms | ~62× |
 
+M146 is champion despite slightly higher geo-mean than M140 — M140's numbers are skewed by the star benchmark where it benefits from M137's single-heap tradeoff, but M137 introduced a regression on non-star topologies that M146 corrects. M146 was verified more robust across all 262 tests.  
+
 Current champion (`M146`): geo-mean ~0.14ms (chain_1k=0.29, chain_5k=1.59, star_500=0.057, grid_2500=0.091, dense_80=0.025), score ~7000, 262 tests passing. Further mutations are at the noise floor (~5–8% measurement stdev), making optimizations below ~10% unreliable.
 
 M61 converts `Edge` objects to `(target, weight)` tuples once (lazily cached on the graph object via `graph._cs_nb`), replacing `edge.target`/`edge.weight` `__dict__` lookups with C-level tuple unpacking in the hot loop. The cache is invalidated on graph mutation (`add_edge` deletes `_cs_*` attributes, triggering a rebuild on the next call).

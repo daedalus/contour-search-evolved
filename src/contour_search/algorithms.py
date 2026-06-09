@@ -4,7 +4,7 @@ import heapq
 from collections import deque
 from typing import Callable, Dict, List, Optional, Set
 
-from contour_search.graph import Edge, Graph
+from contour_search.graph import Edge, Graph, _ContourCache
 
 
 def _bellman_relax(nodes, dist, pred, graph):
@@ -695,6 +695,9 @@ def _cs_reconstruct(pred, inv, node_i, goal_i):
     return path[::-1]
 
 
+# _cs_process_single and _cs_batch_expand duplicate goal-check + g_score
+# sentinel logic. The degree threshold (4) was empirically chosen: batch
+# dispatch overhead outweighs its benefit on low-fanout nodes.
 def _cs_process_single(
     node_i, g, nb_f_offset, heap, g_score, pred, goal_i, inv, _hp_push
 ):
@@ -766,8 +769,8 @@ def _cs_batch_expand(
 
 
 def _cs_init_idx(graph):
-    idx = graph._cs_idx
-    if idx is None:
+    cache = graph._cs_cache
+    if cache is None:
         idx = {n: i for i, n in enumerate(graph.adjacency)}
         N = len(idx)
         inv = [None] * N
@@ -777,42 +780,41 @@ def _cs_init_idx(graph):
         for node, edges in graph.adjacency.items():
             node_i = idx[node]
             nb_idx[node_i] = [(idx[e.target], e.weight) for e in edges]
-        graph._cs_idx = idx
-        graph._cs_inv = inv
-        graph._cs_nb_idx = nb_idx
-        graph._cs_nb_f_offset = None
+        graph._cs_cache = _ContourCache(idx=idx, inv=inv, nb_idx=nb_idx)
     else:
-        nb_idx = graph._cs_nb_idx
-        inv = graph._cs_inv
+        idx = cache.idx
+        inv = cache.inv
+        nb_idx = cache.nb_idx
     return idx, inv, nb_idx
 
 
 def _cs_get_hcache(graph, N, inv, nb_idx, goal, heuristic, precision):
-    h_cache = graph._cs_h_cache
+    cache = graph._cs_cache
+    h_cache = cache.h_cache
     # Identity check (is not) avoids calling __eq__ on every call but will
-    # spuriously rebuild if the user passes a freshly-instantiated callable
+    # spuriously rebuild if the caller passes a freshly-instantiated callable
     # each time (e.g., a lambda in a loop or a per-call bound method).
     needs_build = (
         h_cache is None
-        or graph._cs_h_goal != goal
-        or graph._cs_h_precision != precision
-        or graph._cs_h_fn is not heuristic
+        or cache.h_goal != goal
+        or cache.h_precision != precision
+        or cache.h_fn is not heuristic
     )
-    if needs_build or graph._cs_nb_f_offset is None:
+    if needs_build or cache.nb_f_offset is None:
         if needs_build:
             h_cache = [round(heuristic(inv[i], goal), precision) for i in range(N)]
-            graph._cs_h_cache = h_cache
-            graph._cs_h_goal = goal
-            graph._cs_h_precision = precision
-            graph._cs_h_fn = heuristic
+            cache.h_cache = h_cache
+            cache.h_goal = goal
+            cache.h_precision = precision
+            cache.h_fn = heuristic
         nb_f_offset = [
             [(nxt_i, wt, wt + h_cache[nxt_i]) for nxt_i, wt in nb] for nb in nb_idx
         ]
         for lst in nb_f_offset:
             lst.sort(key=lambda x: x[2])
-        graph._cs_nb_f_offset = nb_f_offset
+        cache.nb_f_offset = nb_f_offset
     else:
-        nb_f_offset = graph._cs_nb_f_offset
+        nb_f_offset = cache.nb_f_offset
     return h_cache, nb_f_offset
 
 
@@ -823,10 +825,11 @@ def _cs_prepare(graph, start, goal, heuristic, precision):
     start_i = idx[start]
     goal_i = idx[goal]
 
-    is_chain = graph._cs_is_chain
+    cache = graph._cs_cache
+    is_chain = cache.is_chain
     if is_chain is None:
         is_chain = _is_chain(nb_idx)
-        graph._cs_is_chain = is_chain
+        cache.is_chain = is_chain
 
     if is_chain:
         return start_i, goal_i, nb_idx, inv, N, True, None, None
