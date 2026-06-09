@@ -23,8 +23,8 @@
 | `dijkstra` | O((V + E) log V) | O(V) | yes | Non-negative weights |
 | `bellman_ford` | O(VE) | O(V) | yes | Handles negative; detects neg cycles |
 | `spfa` | O(VE) worst / O(E) typical | O(V) | yes | Queue-based; fast on sparse |
-| `dag_shortest_path` | O(V + E) | O(V) | yes | DAG only; fastest general SSSP |
-| `astar` | O(E) typical / O(b^d) worst | O(V) | with admissible h | Heuristic-guided |
+| `dag_shortest_path` | O(V + E) | O(V) | yes | DAG only; linear time |
+| `astar` | O((V + E) log V) worst / O(E) typical | O(V) | with admissible h | Heuristic-guided |
 | `greedy_best_first` | O(E) typical | O(V) | no | Pure heuristic, no g-cost |
 | `contour_search` | O(V + E) typical | O(V) | with admissible h | Single-heap A* with batch-push |
 | `bidirectional_bfs` | O(b^(d/2)) | O(b^(d/2)) | unweighted | Meet-in-the-middle BFS |
