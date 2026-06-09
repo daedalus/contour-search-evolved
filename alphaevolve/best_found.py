@@ -1,1 +1,1 @@
-from search.algorithms import contour_search  # noqa: F401
+from search.algorithms import contour_search
