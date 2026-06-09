@@ -7,6 +7,39 @@ from typing import Callable, Dict, List, Optional, Set
 from search.graph import Edge, Graph
 
 
+def _bellman_relax(nodes, dist, pred, graph):
+    updated = False
+    for u in nodes:
+        if dist[u] == float("inf"):
+            continue
+        for edge in graph.neighbors(u):
+            nd = dist[u] + edge.weight
+            if nd < dist[edge.target]:
+                dist[edge.target] = nd
+                pred[edge.target] = u
+                updated = True
+    return updated
+
+
+def _bellman_has_neg_cycle(nodes, dist, graph):
+    for u in nodes:
+        if dist[u] == float("inf"):
+            continue
+        for edge in graph.neighbors(u):
+            if dist[u] + edge.weight < dist[edge.target]:
+                return True
+    return False
+
+
+def _reconstruct_path_dict(pred, goal):
+    path: List[str] = []
+    curr: Optional[str] = goal
+    while curr is not None:
+        path.append(curr)
+        curr = pred[curr]
+    return path[::-1]
+
+
 def bellman_ford(graph: Graph, start: str, goal: str) -> Optional[List[str]]:
     if start not in graph.adjacency or goal not in graph.adjacency:
         return None
@@ -17,35 +50,15 @@ def bellman_ford(graph: Graph, start: str, goal: str) -> Optional[List[str]]:
     dist[start] = 0.0
 
     for _ in range(len(nodes) - 1):
-        updated = False
-        for u in nodes:
-            if dist[u] == float("inf"):
-                continue
-            for edge in graph.neighbors(u):
-                nd = dist[u] + edge.weight
-                if nd < dist[edge.target]:
-                    dist[edge.target] = nd
-                    pred[edge.target] = u
-                    updated = True
-        if not updated:
+        if not _bellman_relax(nodes, dist, pred, graph):
             break
 
-    for u in nodes:
-        if dist[u] == float("inf"):
-            continue
-        for edge in graph.neighbors(u):
-            if dist[u] + edge.weight < dist[edge.target]:
-                return None
-
+    if _bellman_has_neg_cycle(nodes, dist, graph):
+        return None
     if dist[goal] == float("inf"):
         return None
 
-    path: List[str] = []
-    curr: Optional[str] = goal
-    while curr is not None:
-        path.append(curr)
-        curr = pred[curr]
-    return path[::-1]
+    return _reconstruct_path_dict(pred, goal)
 
 
 def bidirectional_bfs(graph: Graph, start: str, goal: str) -> Optional[List[str]]:
@@ -94,6 +107,52 @@ def bidirectional_bfs(graph: Graph, start: str, goal: str) -> Optional[List[str]
     return None
 
 
+def _bd_reconstruct(meet, forward_pred, backward_pred):
+    path: List[str] = []
+    curr: Optional[str] = meet
+    while curr is not None:
+        path.append(curr)
+        curr = forward_pred[curr]
+    path.reverse()
+    curr = backward_pred[meet]
+    while curr is not None:
+        path.append(curr)
+        curr = backward_pred[curr]
+    return path
+
+
+def _bd_forward_expand(f_node, f_dist, graph, forward_pq, forward_dist, forward_pred,
+                        backward_visited, backward_dist, backward_pred, best_cost, best_path):
+    for edge in graph.neighbors(f_node):
+        nd = f_dist + edge.weight
+        if nd < forward_dist.get(edge.target, float("inf")):
+            forward_dist[edge.target] = nd
+            forward_pred[edge.target] = f_node
+            heapq.heappush(forward_pq, (nd, edge.target))
+            if edge.target in backward_visited or edge.target in backward_dist:
+                total = nd + backward_dist.get(edge.target, float("inf"))
+                if total < best_cost:
+                    best_cost = total
+                    best_path = _bd_reconstruct(edge.target, forward_pred, backward_pred)
+    return best_cost, best_path
+
+
+def _bd_backward_expand(b_node, b_dist, graph, backward_pq, backward_dist, backward_pred,
+                         forward_visited, forward_dist, forward_pred, best_cost, best_path):
+    for edge in graph.neighbors(b_node):
+        nd = b_dist + edge.weight
+        if nd < backward_dist.get(edge.target, float("inf")):
+            backward_dist[edge.target] = nd
+            backward_pred[edge.target] = b_node
+            heapq.heappush(backward_pq, (nd, edge.target))
+            if edge.target in forward_visited or edge.target in forward_dist:
+                total = nd + forward_dist.get(edge.target, float("inf"))
+                if total < best_cost:
+                    best_cost = total
+                    best_path = _bd_reconstruct(edge.target, forward_pred, backward_pred)
+    return best_cost, best_path
+
+
 def bidirectional_dijkstra(graph: Graph, start: str, goal: str) -> Optional[List[str]]:
     if start not in graph.adjacency or goal not in graph.adjacency:
         return None
@@ -111,55 +170,22 @@ def bidirectional_dijkstra(graph: Graph, start: str, goal: str) -> Optional[List
     best_path: Optional[List[str]] = None
     best_cost: float = float("inf")
 
-    def _reconstruct(meet: str) -> List[str]:
-        path: List[str] = []
-        curr: Optional[str] = meet
-        while curr is not None:
-            path.append(curr)
-            curr = forward_pred[curr]
-        path.reverse()
-        curr = backward_pred[meet]
-        while curr is not None:
-            path.append(curr)
-            curr = backward_pred[curr]
-        return path
-
     while forward_pq and backward_pq:
         f_dist, f_node = heapq.heappop(forward_pq)
         forward_visited.add(f_node)
-
-        if f_dist + backward_dist.get(f_node, float("inf")) > best_cost:
-            continue
-
-        for edge in graph.neighbors(f_node):
-            nd = f_dist + edge.weight
-            if nd < forward_dist.get(edge.target, float("inf")):
-                forward_dist[edge.target] = nd
-                forward_pred[edge.target] = f_node
-                heapq.heappush(forward_pq, (nd, edge.target))
-                if edge.target in backward_visited or edge.target in backward_dist:
-                    total = nd + backward_dist.get(edge.target, float("inf"))
-                    if total < best_cost:
-                        best_cost = total
-                        best_path = _reconstruct(edge.target)
+        if f_dist + backward_dist.get(f_node, float("inf")) <= best_cost:
+            best_cost, best_path = _bd_forward_expand(
+                f_node, f_dist, graph, forward_pq, forward_dist, forward_pred,
+                backward_visited, backward_dist, backward_pred, best_cost, best_path
+            )
 
         b_dist, b_node = heapq.heappop(backward_pq)
         backward_visited.add(b_node)
-
-        if b_dist + forward_dist.get(b_node, float("inf")) > best_cost:
-            continue
-
-        for edge in graph.neighbors(b_node):
-            nd = b_dist + edge.weight
-            if nd < backward_dist.get(edge.target, float("inf")):
-                backward_dist[edge.target] = nd
-                backward_pred[edge.target] = b_node
-                heapq.heappush(backward_pq, (nd, edge.target))
-                if edge.target in forward_visited or edge.target in forward_dist:
-                    total = nd + forward_dist.get(edge.target, float("inf"))
-                    if total < best_cost:
-                        best_cost = total
-                        best_path = _reconstruct(edge.target)
+        if b_dist + forward_dist.get(b_node, float("inf")) <= best_cost:
+            best_cost, best_path = _bd_backward_expand(
+                b_node, b_dist, graph, backward_pq, backward_dist, backward_pred,
+                forward_visited, forward_dist, forward_pred, best_cost, best_path
+            )
 
     return best_path
 
@@ -397,11 +423,7 @@ def floyd_warshall(graph: Graph) -> Optional[Dict[str, Dict[str, float]]]:
     return dist
 
 
-def johnson(graph: Graph) -> Optional[Dict[str, Dict[str, float]]]:
-    nodes = graph.nodes()
-    if not nodes:
-        return None
-
+def _johnson_potentials(nodes, graph):
     extra = "__johnson_source__"
     g = Graph()
     g.adjacency = {n: list(graph.neighbors(n)) for n in nodes}
@@ -431,6 +453,35 @@ def johnson(graph: Graph) -> Optional[Dict[str, Dict[str, float]]]:
         for edge in g.neighbors(u):
             if h[u] + edge.weight < h[edge.target]:
                 return None
+    return h
+
+
+def _johnson_dijkstra(src, nodes, reweighted, h):
+    pq: List[tuple] = [(0.0, src)]
+    d: Dict[str, float] = {n: float("inf") for n in nodes}
+    d[src] = 0.0
+    visited: Set[str] = set()
+    while pq:
+        cd, u = heapq.heappop(pq)
+        if u in visited:
+            continue
+        visited.add(u)
+        for edge in reweighted.neighbors(u):
+            nd = cd + edge.weight
+            if nd < d[edge.target]:
+                d[edge.target] = nd
+                heapq.heappush(pq, (nd, edge.target))
+    return {n: d[n] + h[n] - h[src] for n in nodes}
+
+
+def johnson(graph: Graph) -> Optional[Dict[str, Dict[str, float]]]:
+    nodes = graph.nodes()
+    if not nodes:
+        return None
+
+    h = _johnson_potentials(nodes, graph)
+    if h is None:
+        return None
 
     reweighted = Graph()
     for u in nodes:
@@ -438,35 +489,7 @@ def johnson(graph: Graph) -> Optional[Dict[str, Dict[str, float]]]:
             rw = edge.weight + h[u] - h[edge.target]
             reweighted.add_edge(u, edge.target, weight=rw, bidirectional=False)
 
-    dist: Dict[str, Dict[str, float]] = {n: {} for n in nodes}
-    for src in nodes:
-        pq: List[tuple] = [(0.0, src)]
-        d: Dict[str, float] = {n: float("inf") for n in nodes}
-        d[src] = 0.0
-        visited: Set[str] = set()
-        while pq:
-            cd, u = heapq.heappop(pq)
-            if u in visited:
-                continue
-            visited.add(u)
-            for edge in reweighted.neighbors(u):
-                nd = cd + edge.weight
-                if nd < d[edge.target]:
-                    d[edge.target] = nd
-                    heapq.heappush(pq, (nd, edge.target))
-        dist[src] = {n: d[n] + h[n] - h[src] for n in nodes}
-
-    return dist
-
-    if dist[goal] == float("inf"):
-        return None
-
-    path: List[str] = []
-    curr: Optional[str] = goal
-    while curr is not None:
-        path.append(curr)
-        curr = pred[curr]
-    return path[::-1]
+    return {src: _johnson_dijkstra(src, nodes, reweighted, h) for src in nodes}
 
 
 def bfs(graph: Graph, start: str, goal: str) -> Optional[List[str]]:
@@ -583,16 +606,53 @@ def _chain_search(start_i: int, goal_i: int, nb_idx, inv, N: int) -> Optional[Li
     return path[:pi]
 
 
-def contour_search(
-    graph: Graph,
-    start: str,
-    goal: str,
-    heuristic: Callable[[str, str], float] = lambda a, b: 0.0,
-    precision: int = 3,
-) -> Optional[List[str]]:
-    if start not in graph.adjacency or goal not in graph.adjacency:
-        return None
+def _cs_reconstruct(pred, inv, node_i, goal_i):
+    path = [inv[goal_i]]
+    cur = node_i
+    while pred[cur] != -1:
+        cur = pred[cur]
+        path.append(inv[cur])
+    return path[::-1]
 
+
+def _cs_expand_node(node_i, g, nb_f_offset, heap, g_score, pred, goal_i, inv):
+    if node_i == goal_i:
+        return _cs_reconstruct(pred, inv, node_i, goal_i)
+
+    g_score[node_i] = float('-inf')
+    nb_entries = nb_f_offset[node_i]
+    if len(nb_entries) > 4:
+        _batch_f = None
+        _batch_g = None
+        _batch_list = None
+        for nxt_i, wt, f_offset in nb_entries:
+            new_g = g + wt
+            if new_g < g_score[nxt_i]:
+                g_score[nxt_i] = new_g
+                pred[nxt_i] = node_i
+                new_f = g + f_offset
+                if _batch_f == new_f and _batch_g == new_g:
+                    _batch_list.append(nxt_i)
+                else:
+                    if _batch_list is not None:
+                        heapq.heappush(heap, (_batch_f, -_batch_g, _batch_list))
+                    _batch_f = new_f
+                    _batch_g = new_g
+                    _batch_list = [nxt_i]
+        if _batch_list is not None:
+            heapq.heappush(heap, (_batch_f, -_batch_g, _batch_list))
+    else:
+        for nxt_i, wt, f_offset in nb_entries:
+            new_g = g + wt
+            if new_g < g_score[nxt_i]:
+                g_score[nxt_i] = new_g
+                pred[nxt_i] = node_i
+                new_f = g + f_offset
+                heapq.heappush(heap, (new_f, -new_g, nxt_i))
+    return None
+
+
+def _cs_init_idx(graph):
     idx = graph._cs_idx
     if idx is None:
         idx = {n: i for i, n in enumerate(graph.adjacency)}
@@ -611,6 +671,35 @@ def contour_search(
     else:
         nb_idx = graph._cs_nb_idx
         inv = graph._cs_inv
+    return idx, inv, nb_idx
+
+
+def _cs_get_hcache(graph, N, inv, nb_idx, goal, heuristic, precision):
+    h_cache = graph._cs_h_cache
+    needs_build = (
+        h_cache is None
+        or graph._cs_h_goal != goal
+        or graph._cs_h_precision != precision
+        or graph._cs_h_fn is not heuristic
+    )
+    if needs_build or graph._cs_nb_f_offset is None:
+        if needs_build:
+            h_cache = [round(heuristic(inv[i], goal), precision) for i in range(N)]
+            graph._cs_h_cache = h_cache
+            graph._cs_h_goal = goal
+            graph._cs_h_precision = precision
+            graph._cs_h_fn = heuristic
+        nb_f_offset = [[(nxt_i, wt, wt + h_cache[nxt_i]) for nxt_i, wt in nb] for nb in nb_idx]
+        for lst in nb_f_offset:
+            lst.sort(key=lambda x: x[2])
+        graph._cs_nb_f_offset = nb_f_offset
+    else:
+        nb_f_offset = graph._cs_nb_f_offset
+    return h_cache, nb_f_offset
+
+
+def _cs_prepare(graph, start, goal, heuristic, precision):
+    idx, inv, nb_idx = _cs_init_idx(graph)
 
     N = len(inv)
     start_i = idx[start]
@@ -622,34 +711,33 @@ def contour_search(
         graph._cs_is_chain = is_chain
 
     if is_chain:
-        return _chain_search(start_i, goal_i, nb_idx, inv, N)
+        return start_i, goal_i, nb_idx, inv, N, True, None, None
 
-    h_cache = graph._cs_h_cache
-    if h_cache is None or graph._cs_h_goal != goal or graph._cs_h_precision != precision or graph._cs_h_fn is not heuristic:
-        h_cache = [round(heuristic(inv[i], goal), precision) for i in range(N)]
-        graph._cs_h_cache = h_cache
-        graph._cs_h_goal = goal
-        graph._cs_h_precision = precision
-        graph._cs_h_fn = heuristic
-        nb_f_offset = [[(nxt_i, wt, wt + h_cache[nxt_i]) for nxt_i, wt in nb] for nb in nb_idx]
-        for lst in nb_f_offset:
-            lst.sort(key=lambda x: x[2])
-        graph._cs_nb_f_offset = nb_f_offset
-    else:
-        nb_f_offset = graph._cs_nb_f_offset
-        if nb_f_offset is None:
-            nb_f_offset = [[(nxt_i, wt, wt + h_cache[nxt_i]) for nxt_i, wt in nb] for nb in nb_idx]
-            for lst in nb_f_offset:
-                lst.sort(key=lambda x: x[2])
-            graph._cs_nb_f_offset = nb_f_offset
+    h_cache, nb_f_offset = _cs_get_hcache(graph, N, inv, nb_idx, goal, heuristic, precision)
+    return start_i, goal_i, nb_idx, inv, N, False, h_cache, nb_f_offset
+
+
+def contour_search(
+    graph: Graph,
+    start: str,
+    goal: str,
+    heuristic: Callable[[str, str], float] = lambda a, b: 0.0,
+    precision: int = 3,
+) -> Optional[List[str]]:
+    if start not in graph.adjacency or goal not in graph.adjacency:
+        return None
+
+    result = _cs_prepare(graph, start, goal, heuristic, precision)
+    start_i, goal_i, nb_idx, inv, N, is_chain, h_cache, nb_f_offset = result
+
+    if is_chain:
+        return _chain_search(start_i, goal_i, nb_idx, inv, N)
 
     g_score = [float('inf')] * N
     g_score[start_i] = 0.0
     pred = [-1] * N
-    VISITED = float('-inf')
 
-    f_start = h_cache[start_i]
-    heap = [(f_start, 0.0, start_i)]
+    heap = [(h_cache[start_i], 0.0, start_i)]
 
     while heap:
         f_key, neg_g, entry = heapq.heappop(heap)
@@ -659,84 +747,15 @@ def contour_search(
             for node_i in entry:
                 if g != g_score[node_i]:
                     continue
-                if node_i == goal_i:
-                    path = [inv[goal_i]]
-                    cur = node_i
-                    while pred[cur] != -1:
-                        cur = pred[cur]
-                        path.append(inv[cur])
-                    return path[::-1]
-                g_score[node_i] = VISITED
-                nb_entries = nb_f_offset[node_i]
-                if len(nb_entries) > 4:
-                    _batch_f = None
-                    _batch_g = None
-                    _batch_list = None
-                    for nxt_i, wt, f_offset in nb_entries:
-                        new_g = g + wt
-                        if new_g < g_score[nxt_i]:
-                            g_score[nxt_i] = new_g
-                            pred[nxt_i] = node_i
-                            new_f = g + f_offset
-                            if _batch_f == new_f and _batch_g == new_g:
-                                _batch_list.append(nxt_i)
-                            else:
-                                if _batch_list is not None:
-                                    heapq.heappush(heap, (_batch_f, -_batch_g, _batch_list))
-                                _batch_f = new_f
-                                _batch_g = new_g
-                                _batch_list = [nxt_i]
-                    if _batch_list is not None:
-                        heapq.heappush(heap, (_batch_f, -_batch_g, _batch_list))
-                else:
-                    for nxt_i, wt, f_offset in nb_entries:
-                        new_g = g + wt
-                        if new_g < g_score[nxt_i]:
-                            g_score[nxt_i] = new_g
-                            pred[nxt_i] = node_i
-                            new_f = g + f_offset
-                            heapq.heappush(heap, (new_f, -new_g, nxt_i))
+                found = _cs_expand_node(node_i, g, nb_f_offset, heap, g_score, pred, goal_i, inv)
+                if found is not None:
+                    return found
         else:
-            node_i = entry
-            if g != g_score[node_i]:
+            if g != g_score[entry]:
                 continue
-            if node_i == goal_i:
-                path = [inv[goal_i]]
-                cur = node_i
-                while pred[cur] != -1:
-                    cur = pred[cur]
-                    path.append(inv[cur])
-                return path[::-1]
-            g_score[node_i] = VISITED
-            nb_entries = nb_f_offset[node_i]
-            if len(nb_entries) > 4:
-                _batch_f = None
-                _batch_g = None
-                _batch_list = None
-                for nxt_i, wt, f_offset in nb_entries:
-                    new_g = g + wt
-                    if new_g < g_score[nxt_i]:
-                        g_score[nxt_i] = new_g
-                        pred[nxt_i] = node_i
-                        new_f = g + f_offset
-                        if _batch_f == new_f and _batch_g == new_g:
-                            _batch_list.append(nxt_i)
-                        else:
-                            if _batch_list is not None:
-                                heapq.heappush(heap, (_batch_f, -_batch_g, _batch_list))
-                            _batch_f = new_f
-                            _batch_g = new_g
-                            _batch_list = [nxt_i]
-                if _batch_list is not None:
-                    heapq.heappush(heap, (_batch_f, -_batch_g, _batch_list))
-            else:
-                for nxt_i, wt, f_offset in nb_entries:
-                    new_g = g + wt
-                    if new_g < g_score[nxt_i]:
-                        g_score[nxt_i] = new_g
-                        pred[nxt_i] = node_i
-                        new_f = g + f_offset
-                        heapq.heappush(heap, (new_f, -new_g, nxt_i))
+            found = _cs_expand_node(entry, g, nb_f_offset, heap, g_score, pred, goal_i, inv)
+            if found is not None:
+                return found
 
     return None
 

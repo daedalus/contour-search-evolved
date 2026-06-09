@@ -41,16 +41,16 @@ def _chain_search(start_i: int, goal_i: int, nb_idx, inv, N: int) -> Optional[Li
     return path[:pi]
 
 
-def contour_search(
-    graph: Graph,
-    start: str,
-    goal: str,
-    heuristic: Callable[[str, str], float] = lambda a, b: 0.0,
-    precision: int = 3,
-) -> Optional[List[str]]:
-    if start not in graph.adjacency or goal not in graph.adjacency:
-        return None
+def _bf_reconstruct(pred, inv, node_i, goal_i):
+    path = [inv[goal_i]]
+    cur = node_i
+    while pred[cur] != -1:
+        cur = pred[cur]
+        path.append(inv[cur])
+    return path[::-1]
 
+
+def _bf_init_idx(graph):
     idx = graph._cs_idx
     if idx is None:
         idx = {n: i for i, n in enumerate(graph.adjacency)}
@@ -69,6 +69,35 @@ def contour_search(
     else:
         nb_idx = graph._cs_nb_idx
         inv = graph._cs_inv
+    return idx, inv, nb_idx
+
+
+def _bf_get_hcache(graph, N, inv, nb_idx, goal, heuristic, precision):
+    h_cache = graph._cs_h_cache
+    needs_build = (
+        h_cache is None
+        or graph._cs_h_goal != goal
+        or graph._cs_h_precision != precision
+        or graph._cs_h_fn is not heuristic
+    )
+    if needs_build or graph._cs_nb_f_offset is None:
+        if needs_build:
+            h_cache = [round(heuristic(inv[i], goal), precision) for i in range(N)]
+            graph._cs_h_cache = h_cache
+            graph._cs_h_goal = goal
+            graph._cs_h_precision = precision
+            graph._cs_h_fn = heuristic
+        nb_f_offset = [[(nxt_i, wt, wt + h_cache[nxt_i]) for nxt_i, wt in nb] for nb in nb_idx]
+        for lst in nb_f_offset:
+            lst.sort(key=lambda x: x[2])
+        graph._cs_nb_f_offset = nb_f_offset
+    else:
+        nb_f_offset = graph._cs_nb_f_offset
+    return h_cache, nb_f_offset
+
+
+def _bf_prepare(graph, start, goal, heuristic, precision):
+    idx, inv, nb_idx = _bf_init_idx(graph)
 
     N = len(inv)
     start_i = idx[start]
@@ -80,26 +109,54 @@ def contour_search(
         graph._cs_is_chain = is_chain
 
     if is_chain:
-        return _chain_search(start_i, goal_i, nb_idx, inv, N)
+        return start_i, goal_i, nb_idx, inv, N, True, None, None
 
-    h_cache = graph._cs_h_cache
-    if h_cache is None or graph._cs_h_goal != goal or graph._cs_h_precision != precision or graph._cs_h_fn is not heuristic:
-        h_cache = [round(heuristic(inv[i], goal), precision) for i in range(N)]
-        graph._cs_h_cache = h_cache
-        graph._cs_h_goal = goal
-        graph._cs_h_precision = precision
-        graph._cs_h_fn = heuristic
-        nb_f_offset = [[(nxt_i, wt, wt + h_cache[nxt_i]) for nxt_i, wt in nb] for nb in nb_idx]
-        for lst in nb_f_offset:
-            lst.sort(key=lambda x: x[2])
-        graph._cs_nb_f_offset = nb_f_offset
-    else:
-        nb_f_offset = graph._cs_nb_f_offset
-        if nb_f_offset is None:
-            nb_f_offset = [[(nxt_i, wt, wt + h_cache[nxt_i]) for nxt_i, wt in nb] for nb in nb_idx]
-            for lst in nb_f_offset:
-                lst.sort(key=lambda x: x[2])
-            graph._cs_nb_f_offset = nb_f_offset
+    h_cache, nb_f_offset = _bf_get_hcache(graph, N, inv, nb_idx, goal, heuristic, precision)
+    return start_i, goal_i, nb_idx, inv, N, False, h_cache, nb_f_offset
+
+
+def _bf_expand_node(node_i, g, nb_f_offset, buckets, key_heap, g_score, pred, goal_i, inv, _last_f, _last_list):
+    if node_i == goal_i:
+        return _bf_reconstruct(pred, inv, node_i, goal_i), _last_f, _last_list
+
+    g_score[node_i] = float('-inf')
+
+    for nxt_i, wt, f_offset in nb_f_offset[node_i]:
+        new_g = g + wt
+        if new_g < g_score[nxt_i]:
+            g_score[nxt_i] = new_g
+            pred[nxt_i] = node_i
+            new_f = g + f_offset
+            if new_f == _last_f:
+                _last_list.append(nxt_i)
+            else:
+                try:
+                    _last_list = buckets[new_f]
+                    _last_list.append(nxt_i)
+                except KeyError:
+                    _last_list = [nxt_i]
+                    buckets[new_f] = _last_list
+                    heapq.heappush(key_heap, new_f)
+                _last_f = new_f
+
+    return None, _last_f, _last_list
+
+
+def contour_search(
+    graph: Graph,
+    start: str,
+    goal: str,
+    heuristic: Callable[[str, str], float] = lambda a, b: 0.0,
+    precision: int = 3,
+) -> Optional[List[str]]:
+    if start not in graph.adjacency or goal not in graph.adjacency:
+        return None
+
+    result = _bf_prepare(graph, start, goal, heuristic, precision)
+    start_i, goal_i, nb_idx, inv, N, is_chain, h_cache, nb_f_offset = result
+
+    if is_chain:
+        return _chain_search(start_i, goal_i, nb_idx, inv, N)
 
     buckets: Dict[float, List[int]] = {}
     key_heap: List[float] = []
@@ -110,7 +167,6 @@ def contour_search(
     g_score = [float('inf')] * N
     g_score[start_i] = 0.0
     pred = [-1] * N
-    VISITED = float('-inf')
 
     _last_f = f_start
     _last_list = buckets[f_start]
@@ -125,34 +181,12 @@ def contour_search(
 
         for node_i in entries:
             g = g_score[node_i]
-            if g == VISITED:
+            if g == float('-inf'):
                 continue
-            if node_i == goal_i:
-                path = [inv[goal_i]]
-                cur = node_i
-                while pred[cur] != -1:
-                    cur = pred[cur]
-                    path.append(inv[cur])
-                return path[::-1]
 
-            g_score[node_i] = VISITED
-
-            for nxt_i, wt, f_offset in nb_f_offset[node_i]:
-                new_g = g + wt
-                if new_g < g_score[nxt_i]:
-                    g_score[nxt_i] = new_g
-                    pred[nxt_i] = node_i
-                    new_f = g + f_offset
-                    if new_f == _last_f:
-                        _last_list.append(nxt_i)
-                    else:
-                        try:
-                            _last_list = buckets[new_f]
-                            _last_list.append(nxt_i)
-                        except KeyError:
-                            _last_list = [nxt_i]
-                            buckets[new_f] = _last_list
-                            heapq.heappush(key_heap, new_f)
-                        _last_f = new_f
+            expanded = _bf_expand_node(node_i, g, nb_f_offset, buckets, key_heap, g_score, pred, goal_i, inv, _last_f, _last_list)
+            found, _last_f, _last_list = expanded
+            if found is not None:
+                return found
 
     return None

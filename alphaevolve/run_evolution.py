@@ -63,14 +63,7 @@ def quick_correctness_check(fn) -> bool:
     return True
 
 
-def main():
-    import argparse
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--quick", action="store_true", help="Only run correctness check")
-    parser.add_argument("--candidate", type=str, help="Run a specific candidate only")
-    args = parser.parse_args()
-
-    # Get baseline score
+def _print_baseline():
     print("=== Baseline ===")
     base_score = evaluate_candidate(baseline)
     base_details = evaluate_candidate_detailed(baseline)
@@ -79,11 +72,13 @@ def main():
         if isinstance(d, dict) and "error" not in d:
             print(f"    {name}: median={d['median_ms']:.3f}ms  cv={d['cv']:.4f}")
     print()
+    return base_score
 
-    # Load candidates
+
+def _load_candidates(candidate_filter):
     candidates = []
     for f in sorted(CANDIDATE_DIR.glob("*.py")):
-        if args.candidate and args.candidate not in f.stem:
+        if candidate_filter and candidate_filter not in f.stem:
             continue
         try:
             fn = load_candidate(f)
@@ -91,11 +86,10 @@ def main():
             print(f"  Loaded {f.stem}")
         except Exception as e:
             print(f"  FAILED to load {f.stem}: {e}")
+    return candidates
 
-    if not candidates:
-        print("No candidates to test.")
-        return
 
+def _check_candidates(candidates):
     print(f"\n=== Correctness Check ===")
     results = []
     for name, fn in candidates:
@@ -109,10 +103,10 @@ def main():
             print(f"  {name}: CRASH ({e})")
             continue
         results.append((name, fn))
+    return results
 
-    if args.quick:
-        return
 
+def _benchmark_candidates(results, base_score):
     print(f"\n=== Benchmark ({len(results)} candidates) ===")
     scores = []
     for name, fn in results:
@@ -129,23 +123,47 @@ def main():
                     print(f"      {bn}: median={d['median_ms']:.3f}ms  cv={d['cv']:.4f}")
         except Exception as e:
             print(f"  {name}: BENCHMARK ERROR ({e})")
+    return scores
 
+
+def _print_final(scores, base_score):
     if not scores:
         return
-
     scores.sort(reverse=True)
-    best_score, best_name, best_ms, best_pct, best_details = scores[0]
+    best_score, best_name, best_ms, best_pct, _ = scores[0]
 
     print(f"\n=== Results ===")
     print(f"  Baseline:  {base_score:.6f} ({1.0/base_score*1000:.4f}ms)")
     print(f"  Champion:  {best_name} ({best_score:.6f}, {best_ms:.4f}ms, {best_pct:+.2f}% vs baseline)")
-    
+
     print(f"\n  Rank table:")
     print(f"  {'rank':<5} {'name':<25} {'score':<12} {'ms':<10} {'%':<10}")
     print(f"  {'-'*5} {'-'*25} {'-'*12} {'-'*10} {'-'*10}")
     for i, (s, n, ms, pct, _) in enumerate(scores):
         label = "★" if i == 0 else " "
         print(f"  {i+1:<4} {label} {n:<23} {s:<12.6f} {ms:<10.4f} {pct:<+10.2f}")
+
+
+def main():
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--quick", action="store_true", help="Only run correctness check")
+    parser.add_argument("--candidate", type=str, help="Run a specific candidate only")
+    args = parser.parse_args()
+
+    base_score = _print_baseline()
+
+    candidates = _load_candidates(args.candidate)
+    if not candidates:
+        print("No candidates to test.")
+        return
+
+    results = _check_candidates(candidates)
+    if args.quick:
+        return
+
+    scores = _benchmark_candidates(results, base_score)
+    _print_final(scores, base_score)
 
 
 if __name__ == "__main__":
