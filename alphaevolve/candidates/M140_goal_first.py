@@ -17,7 +17,7 @@ def _cs_expand_node(node_i, g, nb_f_offset, heap, g_score, pred, goal_i, inv):
     if node_i == goal_i:
         return _cs_reconstruct(pred, inv, node_i, goal_i)
 
-    g_score[node_i] = float('-inf')
+    g_score[node_i] = float("-inf")
     nb_entries = nb_f_offset[node_i]
     if len(nb_entries) > 4:
         _batch_f = None
@@ -69,7 +69,7 @@ def contour_search(
     if is_chain:
         return _chain_search(start_i, goal_i, nb_idx, inv, N)
 
-    g_score = [float('inf')] * N
+    g_score = [float("inf")] * N
     g_score[start_i] = 0.0
     pred = [-1] * N
 
@@ -83,13 +83,17 @@ def contour_search(
             for node_i in entry:
                 if g != g_score[node_i]:
                     continue
-                found = _cs_expand_node(node_i, g, nb_f_offset, heap, g_score, pred, goal_i, inv)
+                found = _cs_expand_node(
+                    node_i, g, nb_f_offset, heap, g_score, pred, goal_i, inv
+                )
                 if found is not None:
                     return found
         else:
             if g != g_score[entry]:
                 continue
-            found = _cs_expand_node(entry, g, nb_f_offset, heap, g_score, pred, goal_i, inv)
+            found = _cs_expand_node(
+                entry, g, nb_f_offset, heap, g_score, pred, goal_i, inv
+            )
             if found is not None:
                 return found
 

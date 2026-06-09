@@ -27,6 +27,7 @@ from search.algorithms import (
 # Fixtures
 # ---------------------------------------------------------------------------
 
+
 @pytest.fixture
 def simple_graph() -> Graph:
     g = Graph()
@@ -162,6 +163,7 @@ def dense_graph() -> Graph:
 # BFS
 # ---------------------------------------------------------------------------
 
+
 class TestBFS:
     def test_finds_path(self, simple_graph: Graph):
         path = bfs(simple_graph, "A", "F")
@@ -227,14 +229,15 @@ class TestBFS:
     def test_disconnected_with_extra_nodes(self):
         g = Graph()
         for i in range(5):
-            g.add_edge(f"a{i}", f"a{i+1}")
-            g.add_edge(f"b{i}", f"b{i+1}")
+            g.add_edge(f"a{i}", f"a{i + 1}")
+            g.add_edge(f"b{i}", f"b{i + 1}")
         assert bfs(g, "a0", "b3") is None
 
 
 # ---------------------------------------------------------------------------
 # DFS
 # ---------------------------------------------------------------------------
+
 
 class TestDFS:
     def test_finds_path(self, simple_graph: Graph):
@@ -312,6 +315,7 @@ class TestDFS:
 # Dijkstra
 # ---------------------------------------------------------------------------
 
+
 class TestDijkstra:
     def test_finds_shortest_path(self, weighted_graph: Graph):
         path = dijkstra(weighted_graph, "A", "F")
@@ -322,7 +326,11 @@ class TestDijkstra:
     def test_optimal_cost(self, weighted_graph: Graph):
         path = dijkstra(weighted_graph, "A", "F")
         cost = sum(
-            next(e.weight for e in weighted_graph.neighbors(path[i]) if e.target == path[i + 1])
+            next(
+                e.weight
+                for e in weighted_graph.neighbors(path[i])
+                if e.target == path[i + 1]
+            )
             for i in range(len(path) - 1)
         )
         assert cost == 13
@@ -330,7 +338,11 @@ class TestDijkstra:
     def test_prefers_cheaper_path(self, weighted_graph: Graph):
         path = dijkstra(weighted_graph, "A", "D")
         cost = sum(
-            next(e.weight for e in weighted_graph.neighbors(path[i]) if e.target == path[i + 1])
+            next(
+                e.weight
+                for e in weighted_graph.neighbors(path[i])
+                if e.target == path[i + 1]
+            )
             for i in range(len(path) - 1)
         )
         assert cost == 8
@@ -338,7 +350,11 @@ class TestDijkstra:
     def test_zero_weight_edges(self, zero_weight_graph: Graph):
         path = dijkstra(zero_weight_graph, "A", "C")
         cost = sum(
-            next(e.weight for e in zero_weight_graph.neighbors(path[i]) if e.target == path[i + 1])
+            next(
+                e.weight
+                for e in zero_weight_graph.neighbors(path[i])
+                if e.target == path[i + 1]
+            )
             for i in range(len(path) - 1)
         )
         assert cost == 0
@@ -396,10 +412,16 @@ class TestDijkstra:
         )
         assert cost == 2e9
 
-    def test_negative_weights_produces_incorrect_result(self, negative_weight_graph: Graph):
+    def test_negative_weights_produces_incorrect_result(
+        self, negative_weight_graph: Graph
+    ):
         path = dijkstra(negative_weight_graph, "A", "C")
         cost = sum(
-            next(e.weight for e in negative_weight_graph.neighbors(path[i]) if e.target == path[i + 1])
+            next(
+                e.weight
+                for e in negative_weight_graph.neighbors(path[i])
+                if e.target == path[i + 1]
+            )
             for i in range(len(path) - 1)
         )
         assert cost != 0
@@ -422,6 +444,7 @@ class TestDijkstra:
 # A*
 # ---------------------------------------------------------------------------
 
+
 class TestAStar:
     def test_finds_path(self, weighted_graph: Graph):
         path = astar(weighted_graph, "A", "F")
@@ -435,7 +458,9 @@ class TestAStar:
         assert astar_path == dij_path
 
     def test_with_heuristic(self, weighted_graph: Graph):
-        h = lambda a, b: 0.0
+        def h(a, b):
+            return 0.0
+
         path = astar(weighted_graph, "A", "F", heuristic=h)
         assert path is not None
 
@@ -501,7 +526,9 @@ class TestAStar:
         for i in range(10):
             g.add_edge(str(i), str(i + 1), weight=2, bidirectional=False)
 
-        h = lambda a, b: abs(int(a) - int(b))
+        def h(a, b):
+            return abs(int(a) - int(b))
+
         dij_path = dijkstra(g, "0", "10")
         astar_path = astar(g, "0", "10", heuristic=h)
         assert astar_path == dij_path
@@ -514,6 +541,7 @@ class TestAStar:
 # ---------------------------------------------------------------------------
 # Contour Search
 # ---------------------------------------------------------------------------
+
 
 class TestContourSearch:
     def test_finds_path(self, weighted_graph: Graph):
@@ -530,7 +558,11 @@ class TestContourSearch:
     def test_coarse_precision_still_correct(self, weighted_graph: Graph):
         cs = contour_search(weighted_graph, "A", "D", precision=0)
         cost = sum(
-            next(e.weight for e in weighted_graph.neighbors(cs[i]) if e.target == cs[i + 1])
+            next(
+                e.weight
+                for e in weighted_graph.neighbors(cs[i])
+                if e.target == cs[i + 1]
+            )
             for i in range(len(cs) - 1)
         )
         assert cost == 8
@@ -565,7 +597,10 @@ class TestContourSearch:
         g = Graph()
         for i in range(10):
             g.add_edge(str(i), str(i + 1), weight=2, bidirectional=False)
-        h = lambda a, b: abs(int(a) - int(b))
+
+        def h(a, b):
+            return abs(int(a) - int(b))
+
         dij_path = dijkstra(g, "0", "10")
         cs_path = contour_search(g, "0", "10", heuristic=h)
         assert cs_path == dij_path
@@ -580,6 +615,7 @@ class TestContourSearch:
 # Bellman-Ford
 # ---------------------------------------------------------------------------
 
+
 class TestBellmanFord:
     def test_finds_path(self, weighted_graph: Graph):
         path = bellman_ford(weighted_graph, "A", "F")
@@ -590,7 +626,11 @@ class TestBellmanFord:
     def test_optimal_cost(self, weighted_graph: Graph):
         path = bellman_ford(weighted_graph, "A", "F")
         cost = sum(
-            next(e.weight for e in weighted_graph.neighbors(path[i]) if e.target == path[i + 1])
+            next(
+                e.weight
+                for e in weighted_graph.neighbors(path[i])
+                if e.target == path[i + 1]
+            )
             for i in range(len(path) - 1)
         )
         assert cost == 13
@@ -726,6 +766,7 @@ class TestBellmanFord:
 # Bidirectional BFS
 # ---------------------------------------------------------------------------
 
+
 class TestBidirectionalBFS:
     def test_finds_path(self, simple_graph: Graph):
         path = bidirectional_bfs(simple_graph, "A", "F")
@@ -775,6 +816,7 @@ class TestBidirectionalBFS:
 # Bidirectional Dijkstra
 # ---------------------------------------------------------------------------
 
+
 class TestBidirectionalDijkstra:
     def test_finds_path(self, weighted_graph: Graph):
         path = bidirectional_dijkstra(weighted_graph, "A", "F")
@@ -785,7 +827,11 @@ class TestBidirectionalDijkstra:
     def test_optimal_cost(self, weighted_graph: Graph):
         path = bidirectional_dijkstra(weighted_graph, "A", "F")
         cost = sum(
-            next(e.weight for e in weighted_graph.neighbors(path[i]) if e.target == path[i + 1])
+            next(
+                e.weight
+                for e in weighted_graph.neighbors(path[i])
+                if e.target == path[i + 1]
+            )
             for i in range(len(path) - 1)
         )
         assert cost == 13
@@ -808,6 +854,7 @@ class TestBidirectionalDijkstra:
 # ---------------------------------------------------------------------------
 # Greedy Best-First Search
 # ---------------------------------------------------------------------------
+
 
 class TestGreedyBestFirst:
     def test_finds_path(self, simple_graph: Graph):
@@ -832,7 +879,10 @@ class TestGreedyBestFirst:
         g = Graph()
         for i in range(10):
             g.add_edge(str(i), str(i + 1), bidirectional=False)
-        h = lambda a, b: abs(int(a) - int(b))
+
+        def h(a, b):
+            return abs(int(a) - int(b))
+
         path = greedy_best_first_search(g, "0", "9", heuristic=h)
         assert path is not None
 
@@ -840,6 +890,7 @@ class TestGreedyBestFirst:
 # ---------------------------------------------------------------------------
 # SPFA
 # ---------------------------------------------------------------------------
+
 
 class TestSPFA:
     def test_finds_path(self, weighted_graph: Graph):
@@ -851,7 +902,11 @@ class TestSPFA:
     def test_optimal_cost(self, weighted_graph: Graph):
         path = spfa(weighted_graph, "A", "F")
         cost = sum(
-            next(e.weight for e in weighted_graph.neighbors(path[i]) if e.target == path[i + 1])
+            next(
+                e.weight
+                for e in weighted_graph.neighbors(path[i])
+                if e.target == path[i + 1]
+            )
             for i in range(len(path) - 1)
         )
         assert cost == 13
@@ -895,6 +950,7 @@ class TestSPFA:
 # ---------------------------------------------------------------------------
 # Topological Sort
 # ---------------------------------------------------------------------------
+
 
 class TestTopologicalSort:
     def test_linear_dag(self):
@@ -949,6 +1005,7 @@ class TestTopologicalSort:
 # ---------------------------------------------------------------------------
 # DAG Shortest Path
 # ---------------------------------------------------------------------------
+
 
 class TestDAGShortestPath:
     def test_finds_path(self):
@@ -1005,6 +1062,7 @@ class TestDAGShortestPath:
 # Prim's MST
 # ---------------------------------------------------------------------------
 
+
 class TestPrimMST:
     def test_simple_mst(self):
         g = Graph()
@@ -1048,6 +1106,7 @@ class TestPrimMST:
 # ---------------------------------------------------------------------------
 # Kruskal's MST
 # ---------------------------------------------------------------------------
+
 
 class TestKruskalMST:
     def test_simple_mst(self):
@@ -1097,6 +1156,7 @@ class TestKruskalMST:
 # Floyd-Warshall
 # ---------------------------------------------------------------------------
 
+
 class TestFloydWarshall:
     def test_simple_graph(self, weighted_graph: Graph):
         dist = floyd_warshall(weighted_graph)
@@ -1129,7 +1189,11 @@ class TestFloydWarshall:
         fw = floyd_warshall(weighted_graph)
         dj = dijkstra(weighted_graph, "A", "F")
         dj_cost = sum(
-            next(e.weight for e in weighted_graph.neighbors(dj[i]) if e.target == dj[i + 1])
+            next(
+                e.weight
+                for e in weighted_graph.neighbors(dj[i])
+                if e.target == dj[i + 1]
+            )
             for i in range(len(dj) - 1)
         )
         assert fw is not None
@@ -1142,6 +1206,7 @@ class TestFloydWarshall:
 # ---------------------------------------------------------------------------
 # Johnson's Algorithm
 # ---------------------------------------------------------------------------
+
 
 class TestJohnson:
     def test_simple_graph(self, weighted_graph: Graph):
@@ -1176,7 +1241,11 @@ class TestJohnson:
         j = johnson(weighted_graph)
         dj = dijkstra(weighted_graph, "A", "F")
         dj_cost = sum(
-            next(e.weight for e in weighted_graph.neighbors(dj[i]) if e.target == dj[i + 1])
+            next(
+                e.weight
+                for e in weighted_graph.neighbors(dj[i])
+                if e.target == dj[i + 1]
+            )
             for i in range(len(dj) - 1)
         )
         assert j is not None
@@ -1198,6 +1267,7 @@ class TestJohnson:
 # ---------------------------------------------------------------------------
 # Graph
 # ---------------------------------------------------------------------------
+
 
 class TestGraph:
     def test_add_directed_edge(self):
@@ -1245,6 +1315,7 @@ class TestGraph:
 
 BENCHMARK_TIMEOUT = 5.0
 
+
 @pytest.mark.slow
 class TestBenchmarkChain:
     def test_bfs_chain_1000(self, large_chain_graph: Graph):
@@ -1271,7 +1342,9 @@ class TestBenchmarkChain:
         assert dt < BENCHMARK_TIMEOUT
 
     def test_astar_chain_1000(self, large_chain_graph: Graph):
-        h = lambda a, b: abs(int(a) - int(b))
+        def h(a, b):
+            return abs(int(a) - int(b))
+
         t0 = time.perf_counter()
         path = astar(large_chain_graph, "0", "998", heuristic=h)
         dt = time.perf_counter() - t0
@@ -1321,7 +1394,9 @@ class TestBenchmarkGrid:
         assert dt < BENCHMARK_TIMEOUT
 
     def test_astar_grid_50x50(self, grid_graph: Graph):
-        h = lambda a, b: 0
+        def h(a, b):
+            return 0
+
         t0 = time.perf_counter()
         path = astar(grid_graph, "0,0", "49,49", heuristic=h)
         dt = time.perf_counter() - t0
@@ -1353,7 +1428,9 @@ class TestBenchmarkDense:
         assert dt < BENCHMARK_TIMEOUT
 
     def test_astar_dense_80(self, dense_graph: Graph):
-        h = lambda a, b: abs(int(a) - int(b))
+        def h(a, b):
+            return abs(int(a) - int(b))
+
         t0 = time.perf_counter()
         path = astar(dense_graph, "0", "79", heuristic=h)
         dt = time.perf_counter() - t0
@@ -1365,15 +1442,19 @@ class TestBenchmarkDense:
 # Failure modes
 # ---------------------------------------------------------------------------
 
+
 class TestFailureModes:
     def test_dijkstra_negative_weights_suboptimal(self, negative_weight_graph: Graph):
         path = dijkstra(negative_weight_graph, "A", "C")
         assert path is not None
         cost = sum(
-            next(e.weight for e in negative_weight_graph.neighbors(path[i]) if e.target == path[i + 1])
+            next(
+                e.weight
+                for e in negative_weight_graph.neighbors(path[i])
+                if e.target == path[i + 1]
+            )
             for i in range(len(path) - 1)
         )
-        A_to_C_direct = 10
         A_to_B_to_C = 5 - 15
         assert cost == A_to_B_to_C
 
@@ -1382,7 +1463,10 @@ class TestFailureModes:
         g.add_edge("A", "B", weight=10)
         g.add_edge("A", "C", weight=1)
         g.add_edge("C", "B", weight=1)
-        h = lambda a, b: 100 if a == "A" else 0
+
+        def h(a, b):
+            return 100 if a == "A" else 0
+
         path = astar(g, "A", "B", heuristic=h)
         assert path is not None
 
@@ -1428,7 +1512,11 @@ class TestFailureModes:
         path = astar(negative_weight_graph, "A", "C")
         assert path is not None
         cost = sum(
-            next(e.weight for e in negative_weight_graph.neighbors(path[i]) if e.target == path[i + 1])
+            next(
+                e.weight
+                for e in negative_weight_graph.neighbors(path[i])
+                if e.target == path[i + 1]
+            )
             for i in range(len(path) - 1)
         )
         A_to_B_to_C = 5 - 15

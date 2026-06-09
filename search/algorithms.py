@@ -121,8 +121,19 @@ def _bd_reconstruct(meet, forward_pred, backward_pred):
     return path
 
 
-def _bd_forward_expand(f_node, f_dist, graph, forward_pq, forward_dist, forward_pred,
-                        backward_visited, backward_dist, backward_pred, best_cost, best_path):
+def _bd_forward_expand(
+    f_node,
+    f_dist,
+    graph,
+    forward_pq,
+    forward_dist,
+    forward_pred,
+    backward_visited,
+    backward_dist,
+    backward_pred,
+    best_cost,
+    best_path,
+):
     for edge in graph.neighbors(f_node):
         nd = f_dist + edge.weight
         if nd < forward_dist.get(edge.target, float("inf")):
@@ -133,12 +144,25 @@ def _bd_forward_expand(f_node, f_dist, graph, forward_pq, forward_dist, forward_
                 total = nd + backward_dist.get(edge.target, float("inf"))
                 if total < best_cost:
                     best_cost = total
-                    best_path = _bd_reconstruct(edge.target, forward_pred, backward_pred)
+                    best_path = _bd_reconstruct(
+                        edge.target, forward_pred, backward_pred
+                    )
     return best_cost, best_path
 
 
-def _bd_backward_expand(b_node, b_dist, graph, backward_pq, backward_dist, backward_pred,
-                         forward_visited, forward_dist, forward_pred, best_cost, best_path):
+def _bd_backward_expand(
+    b_node,
+    b_dist,
+    graph,
+    backward_pq,
+    backward_dist,
+    backward_pred,
+    forward_visited,
+    forward_dist,
+    forward_pred,
+    best_cost,
+    best_path,
+):
     for edge in graph.neighbors(b_node):
         nd = b_dist + edge.weight
         if nd < backward_dist.get(edge.target, float("inf")):
@@ -149,7 +173,9 @@ def _bd_backward_expand(b_node, b_dist, graph, backward_pq, backward_dist, backw
                 total = nd + forward_dist.get(edge.target, float("inf"))
                 if total < best_cost:
                     best_cost = total
-                    best_path = _bd_reconstruct(edge.target, forward_pred, backward_pred)
+                    best_path = _bd_reconstruct(
+                        edge.target, forward_pred, backward_pred
+                    )
     return best_cost, best_path
 
 
@@ -185,23 +211,53 @@ def bidirectional_dijkstra(graph: Graph, start: str, goal: str) -> Optional[List
         f_dist, f_node = heapq.heappop(forward_pq)
         forward_visited.add(f_node)
         best_cost, best_path = _bd_try_meet(
-            f_node, f_dist, backward_dist, backward_pred, forward_pred, best_cost, best_path
+            f_node,
+            f_dist,
+            backward_dist,
+            backward_pred,
+            forward_pred,
+            best_cost,
+            best_path,
         )
         if f_dist + backward_dist.get(f_node, float("inf")) <= best_cost:
             best_cost, best_path = _bd_forward_expand(
-                f_node, f_dist, graph, forward_pq, forward_dist, forward_pred,
-                backward_visited, backward_dist, backward_pred, best_cost, best_path
+                f_node,
+                f_dist,
+                graph,
+                forward_pq,
+                forward_dist,
+                forward_pred,
+                backward_visited,
+                backward_dist,
+                backward_pred,
+                best_cost,
+                best_path,
             )
 
         b_dist, b_node = heapq.heappop(backward_pq)
         backward_visited.add(b_node)
         best_cost, best_path = _bd_try_meet(
-            b_node, b_dist, forward_dist, forward_pred, backward_pred, best_cost, best_path
+            b_node,
+            b_dist,
+            forward_dist,
+            forward_pred,
+            backward_pred,
+            best_cost,
+            best_path,
         )
         if b_dist + forward_dist.get(b_node, float("inf")) <= best_cost:
             best_cost, best_path = _bd_backward_expand(
-                b_node, b_dist, graph, backward_pq, backward_dist, backward_pred,
-                forward_visited, forward_dist, forward_pred, best_cost, best_path
+                b_node,
+                b_dist,
+                graph,
+                backward_pq,
+                backward_dist,
+                backward_pred,
+                forward_visited,
+                forward_dist,
+                forward_pred,
+                best_cost,
+                best_path,
             )
 
     return best_path
@@ -231,7 +287,10 @@ def greedy_best_first_search(
 
         for edge in graph.neighbors(node):
             if edge.target not in visited:
-                heapq.heappush(pq, (heuristic(edge.target, goal), edge.target, [*path, edge.target]))
+                heapq.heappush(
+                    pq,
+                    (heuristic(edge.target, goal), edge.target, [*path, edge.target]),
+                )
 
     return None
 
@@ -413,7 +472,9 @@ def floyd_warshall(graph: Graph) -> Optional[Dict[str, Dict[str, float]]]:
     if not nodes:
         return None
 
-    dist: Dict[str, Dict[str, float]] = {u: {v: float("inf") for v in nodes} for u in nodes}
+    dist: Dict[str, Dict[str, float]] = {
+        u: {v: float("inf") for v in nodes} for u in nodes
+    }
     for n in nodes:
         dist[n][n] = 0.0
     for u in nodes:
@@ -575,7 +636,9 @@ def dijkstra(graph: Graph, start: str, goal: str) -> Optional[List[str]]:
 
         for edge in graph.neighbors(node):
             if edge.target not in visited:
-                heapq.heappush(pq, (cost + edge.weight, edge.target, [*path, edge.target]))
+                heapq.heappush(
+                    pq, (cost + edge.weight, edge.target, [*path, edge.target])
+                )
 
     return None
 
@@ -591,7 +654,9 @@ def _is_chain(nb_idx) -> bool:
     return deg1 == 2
 
 
-def _chain_search(start_i: int, goal_i: int, nb_idx, inv, N: int) -> Optional[List[str]]:
+def _chain_search(
+    start_i: int, goal_i: int, nb_idx, inv, N: int
+) -> Optional[List[str]]:
     path = [None] * N
     path[0] = inv[start_i]
     pi = 1
@@ -603,11 +668,11 @@ def _chain_search(start_i: int, goal_i: int, nb_idx, inv, N: int) -> Optional[Li
             return None
         n1, w1 = nb[0]
         nxt_i = None
-        if w1 != float('inf') and n1 != prev:
+        if w1 != float("inf") and n1 != prev:
             nxt_i = n1
         elif len(nb) > 1:
             n2, w2 = nb[1]
-            if w2 != float('inf') and n2 != prev:
+            if w2 != float("inf") and n2 != prev:
                 nxt_i = n2
         if nxt_i is None:
             return None
@@ -615,7 +680,7 @@ def _chain_search(start_i: int, goal_i: int, nb_idx, inv, N: int) -> Optional[Li
         cur = nxt_i
         path[pi] = inv[cur]
         pi += 1
-    return path[:pi]
+    return path[:pi]  # type: ignore[return-value]
 
 
 def _cs_reconstruct(pred, inv, node_i, goal_i):
@@ -630,7 +695,7 @@ def _cs_reconstruct(pred, inv, node_i, goal_i):
 def _cs_batch_expand(node_i, g, nb_f_offset, heap, g_score, pred, goal_i, inv):
     if node_i == goal_i:
         return _cs_reconstruct(pred, inv, node_i, goal_i)
-    g_score[node_i] = float('-inf')
+    g_score[node_i] = float("-inf")
     _batch_f = None
     _batch_g = None
     _batch_list = None
@@ -648,7 +713,10 @@ def _cs_batch_expand(node_i, g, nb_f_offset, heap, g_score, pred, goal_i, inv):
             else:
                 if _batch_list is not None:
                     if _goal_pos > 0:
-                        _batch_list[0], _batch_list[_goal_pos] = _batch_list[_goal_pos], _batch_list[0]
+                        _batch_list[0], _batch_list[_goal_pos] = (
+                            _batch_list[_goal_pos],
+                            _batch_list[0],
+                        )
                     heapq.heappush(heap, (_batch_f, -_batch_g, _batch_list))
                 _batch_f = new_f
                 _batch_g = new_g
@@ -656,7 +724,10 @@ def _cs_batch_expand(node_i, g, nb_f_offset, heap, g_score, pred, goal_i, inv):
                 _goal_pos = 0 if nxt_i == goal_i else -1
     if _batch_list is not None:
         if _goal_pos > 0:
-            _batch_list[0], _batch_list[_goal_pos] = _batch_list[_goal_pos], _batch_list[0]
+            _batch_list[0], _batch_list[_goal_pos] = (
+                _batch_list[_goal_pos],
+                _batch_list[0],
+            )
         heapq.heappush(heap, (_batch_f, -_batch_g, _batch_list))
     return None
 
@@ -698,7 +769,9 @@ def _cs_get_hcache(graph, N, inv, nb_idx, goal, heuristic, precision):
             graph._cs_h_goal = goal
             graph._cs_h_precision = precision
             graph._cs_h_fn = heuristic
-        nb_f_offset = [[(nxt_i, wt, wt + h_cache[nxt_i]) for nxt_i, wt in nb] for nb in nb_idx]
+        nb_f_offset = [
+            [(nxt_i, wt, wt + h_cache[nxt_i]) for nxt_i, wt in nb] for nb in nb_idx
+        ]
         for lst in nb_f_offset:
             lst.sort(key=lambda x: x[2])
         graph._cs_nb_f_offset = nb_f_offset
@@ -722,7 +795,9 @@ def _cs_prepare(graph, start, goal, heuristic, precision):
     if is_chain:
         return start_i, goal_i, nb_idx, inv, N, True, None, None
 
-    h_cache, nb_f_offset = _cs_get_hcache(graph, N, inv, nb_idx, goal, heuristic, precision)
+    h_cache, nb_f_offset = _cs_get_hcache(
+        graph, N, inv, nb_idx, goal, heuristic, precision
+    )
     return start_i, goal_i, nb_idx, inv, N, False, h_cache, nb_f_offset
 
 
@@ -742,7 +817,7 @@ def contour_search(
     if is_chain:
         return _chain_search(start_i, goal_i, nb_idx, inv, N)
 
-    g_score = [float('inf')] * N
+    g_score = [float("inf")] * N
     g_score[start_i] = 0.0
     pred = [-1] * N
 
@@ -758,7 +833,9 @@ def contour_search(
             for node_i in entry:
                 if g != g_score[node_i]:
                     continue
-                found = _cs_batch_expand(node_i, g, nb_f_offset, heap, g_score, pred, goal_i, inv)
+                found = _cs_batch_expand(
+                    node_i, g, nb_f_offset, heap, g_score, pred, goal_i, inv
+                )
                 if found is not None:
                     return found
         else:
@@ -772,10 +849,12 @@ def contour_search(
                     cur = pred[cur]
                     path.append(inv[cur])
                 return path[::-1]
-            g_score[node_i] = float('-inf')
+            g_score[node_i] = float("-inf")
             nb_e = nb_f_offset[node_i]
             if len(nb_e) > 4:
-                found = _cs_batch_expand(node_i, g, nb_f_offset, heap, g_score, pred, goal_i, inv)
+                found = _cs_batch_expand(
+                    node_i, g, nb_f_offset, heap, g_score, pred, goal_i, inv
+                )
                 if found is not None:
                     return found
             else:
@@ -787,7 +866,6 @@ def contour_search(
                         _hp_push(heap, (g + f_offset, -new_g, nxt_i))
 
     return None
-
 
 
 def astar(

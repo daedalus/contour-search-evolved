@@ -1,4 +1,3 @@
-import math
 import pytest
 import random
 
@@ -9,6 +8,7 @@ from search.algorithms import contour_search, dijkstra
 # ---------------------------------------------------------------------------
 # Negative weights — Dijkstra-family assumption breaks
 # ---------------------------------------------------------------------------
+
 
 def test_negative_weights_straight_line():
     g = Graph()
@@ -44,6 +44,7 @@ def test_negative_weights_reachable():
 # Self-loops
 # ---------------------------------------------------------------------------
 
+
 def test_self_loop():
     g = Graph()
     g.add_edge("A", "A", weight=1)
@@ -63,17 +64,20 @@ def test_self_loop_only_edge():
 # Parallel edges
 # ---------------------------------------------------------------------------
 
+
 def test_parallel_edges_picks_cheapest():
     g = Graph()
     g.add_edge("A", "B", weight=10, bidirectional=False)
     g.add_edge("A", "B", weight=1, bidirectional=False)
     g.add_edge("B", "C", weight=1, bidirectional=False)
     path = contour_search(g, "A", "C")
+
     def path_cost(p):
         return sum(
             min(e.weight for e in g.neighbors(p[i]) if e.target == p[i + 1])
             for i in range(len(p) - 1)
         )
+
     assert path_cost(path) == 2
 
 
@@ -90,6 +94,7 @@ def test_parallel_edges_three_way():
 # ---------------------------------------------------------------------------
 # Zero-weight and zero-cost cycles
 # ---------------------------------------------------------------------------
+
 
 def test_zero_weight_cycle():
     g = Graph()
@@ -113,6 +118,7 @@ def test_zero_weight_long_chain():
 # Extreme precision values
 # ---------------------------------------------------------------------------
 
+
 def test_precision_negative():
     g = Graph()
     g.add_edge("A", "B", weight=1, bidirectional=False)
@@ -132,6 +138,7 @@ def test_precision_very_high():
 # ---------------------------------------------------------------------------
 # Large / float('inf') weights
 # ---------------------------------------------------------------------------
+
 
 def test_large_weights():
     g = Graph()
@@ -164,6 +171,7 @@ def test_mixed_inf_and_finite():
 # Heuristic edge cases
 # ---------------------------------------------------------------------------
 
+
 def test_overestimating_heuristic():
     """Overestimating heuristic may degrade optimality but must still
     return a valid path."""
@@ -171,7 +179,10 @@ def test_overestimating_heuristic():
     g.add_edge("A", "B", weight=1, bidirectional=False)
     g.add_edge("B", "C", weight=1, bidirectional=False)
     g.add_edge("A", "C", weight=100, bidirectional=False)
-    h = lambda a, b: 1000 if a != b else 0
+
+    def h(a, b):
+        return 1000 if a != b else 0
+
     path = contour_search(g, "A", "C", heuristic=h)
     assert path is not None
     assert path[0] == "A" and path[-1] == "C"
@@ -181,7 +192,10 @@ def test_heuristic_returns_inf():
     g = Graph()
     g.add_edge("A", "B", weight=1, bidirectional=False)
     g.add_edge("B", "C", weight=1, bidirectional=False)
-    h = lambda a, b: float("inf") if a == "A" else 0
+
+    def h(a, b):
+        return float("inf") if a == "A" else 0
+
     path = contour_search(g, "A", "C", heuristic=h)
     assert path == ["A", "B", "C"]
 
@@ -190,7 +204,10 @@ def test_heuristic_returns_nan():
     g = Graph()
     g.add_edge("A", "B", weight=1, bidirectional=False)
     g.add_edge("B", "C", weight=1, bidirectional=False)
-    h = lambda a, b: float("nan")
+
+    def h(a, b):
+        return float("nan")
+
     path = contour_search(g, "A", "C", heuristic=h)
     assert path is not None
 
@@ -198,6 +215,7 @@ def test_heuristic_returns_nan():
 # ---------------------------------------------------------------------------
 # Disconnected components — goal unreachable
 # ---------------------------------------------------------------------------
+
 
 def test_disconnected_larger():
     g = Graph()
@@ -219,6 +237,7 @@ def test_isolated_nodes():
 # ---------------------------------------------------------------------------
 # Graph with many nodes, heavy branching
 # ---------------------------------------------------------------------------
+
 
 def test_wide_fan_out():
     g = Graph()
@@ -248,6 +267,7 @@ def test_deep_chain_unreachable():
 # Bidirectional vs directed edge consistency
 # ---------------------------------------------------------------------------
 
+
 def test_bidirectional_is_directed_symmetric():
     g = Graph()
     g.add_edge("A", "B", weight=3, bidirectional=True)
@@ -271,6 +291,7 @@ def test_directed_asymmetric():
 # Unicode / non-ASCII node names
 # ---------------------------------------------------------------------------
 
+
 def test_unicode_node_names():
     g = Graph()
     g.add_edge("東京", "大阪", weight=1, bidirectional=False)
@@ -283,6 +304,7 @@ def test_unicode_node_names():
 # Path consistency with Dijkstra on non-negative graphs
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.parametrize("seed", list(range(20)))
 def test_random_graph_matches_dijkstra(seed):
     random.seed(seed)
@@ -291,8 +313,12 @@ def test_random_graph_matches_dijkstra(seed):
         u = f"n{random.randint(0, 99)}"
         v = f"n{random.randint(0, 99)}"
         if u != v:
-            g.add_edge(u, v, weight=random.uniform(0.1, 10),
-                       bidirectional=random.choice([True, False]))
+            g.add_edge(
+                u,
+                v,
+                weight=random.uniform(0.1, 10),
+                bidirectional=random.choice([True, False]),
+            )
     for _ in range(20):
         s = f"n{random.randint(0, 99)}"
         t = f"n{random.randint(0, 99)}"
@@ -303,11 +329,13 @@ def test_random_graph_matches_dijkstra(seed):
         if dij is None:
             assert cs is None
         else:
+
             def path_cost(p):
                 return sum(
                     min(e.weight for e in g.neighbors(p[i]) if e.target == p[i + 1])
                     for i in range(len(p) - 1)
                 )
+
             dij_cost = path_cost(dij)
             cs_cost = path_cost(cs)
             assert abs(dij_cost - cs_cost) < 1e-9, (
@@ -319,12 +347,16 @@ def test_random_graph_matches_dijkstra(seed):
 # Non-admissible (negative) heuristic — path still valid
 # ---------------------------------------------------------------------------
 
+
 def test_negative_heuristic_still_finds_path():
     g = Graph()
     g.add_edge("A", "B", weight=5, bidirectional=False)
     g.add_edge("B", "C", weight=5, bidirectional=False)
     g.add_edge("A", "C", weight=100, bidirectional=False)
-    h = lambda a, b: -50 if a == "A" else 0
+
+    def h(a, b):
+        return -50 if a == "A" else 0
+
     path = contour_search(g, "A", "C", heuristic=h)
     assert path is not None
 
@@ -332,6 +364,7 @@ def test_negative_heuristic_still_finds_path():
 # ---------------------------------------------------------------------------
 # Precision rounding causing different f-values to collide in same bucket
 # ---------------------------------------------------------------------------
+
 
 def test_precision_collision():
     g = Graph()
@@ -346,6 +379,7 @@ def test_precision_collision():
 # ---------------------------------------------------------------------------
 # Graph where every node pairs have parallel edges
 # ---------------------------------------------------------------------------
+
 
 def test_all_parallel_edges():
     g = Graph()
@@ -365,6 +399,7 @@ def test_all_parallel_edges():
 # Goal reachable through multiple paths with same f-score (ties)
 # ---------------------------------------------------------------------------
 
+
 def test_many_tied_f_scores():
     g = Graph()
     for i in range(100):
@@ -377,6 +412,7 @@ def test_many_tied_f_scores():
 # ---------------------------------------------------------------------------
 # Very small weights near float epsilon
 # ---------------------------------------------------------------------------
+
 
 def test_tiny_weights():
     g = Graph()
@@ -391,6 +427,7 @@ def test_tiny_weights():
 # Exact float comparison — same bucket value, different origins
 # ---------------------------------------------------------------------------
 
+
 def test_exact_float_bucket_key():
     g = Graph()
     g.add_edge("A", "B", weight=0.1 + 0.2, bidirectional=False)
@@ -403,6 +440,7 @@ def test_exact_float_bucket_key():
 # ---------------------------------------------------------------------------
 # Rapid fan-out from multiple levels
 # ---------------------------------------------------------------------------
+
 
 def test_multi_level_explosion():
     g = Graph()
@@ -417,6 +455,7 @@ def test_multi_level_explosion():
 # Graph with no path but many nodes — must return None quickly
 # ---------------------------------------------------------------------------
 
+
 def test_no_path_large_search_space():
     g = Graph()
     for i in range(1000):
@@ -430,6 +469,7 @@ def test_no_path_large_search_space():
 # ---------------------------------------------------------------------------
 # Single node graph, no self-loop
 # ---------------------------------------------------------------------------
+
 
 def test_single_node_no_self_loop():
     g = Graph()
@@ -448,6 +488,7 @@ def test_nonexistent_node_solo():
 # Verify cached tuple cache is stable across calls (graph mutation)
 # ---------------------------------------------------------------------------
 
+
 def test_cache_stable_after_graph_mutation():
     g = Graph()
     g.add_edge("A", "B", weight=1, bidirectional=False)
@@ -461,6 +502,7 @@ def test_cache_stable_after_graph_mutation():
 # ---------------------------------------------------------------------------
 # Multiple contour_search calls on same graph with different params
 # ---------------------------------------------------------------------------
+
 
 def test_multiple_calls_same_graph():
     g = Graph()
@@ -476,6 +518,7 @@ def test_multiple_calls_same_graph():
 # Non-existent start/goal with cached neighbors present
 # ---------------------------------------------------------------------------
 
+
 def test_nonexistent_with_cache():
     g = Graph()
     g.add_edge("A", "B", weight=1, bidirectional=False)
@@ -487,6 +530,7 @@ def test_nonexistent_with_cache():
 # ---------------------------------------------------------------------------
 # Stress: chain of 100k nodes — smoke test for memory/performance regressions
 # ---------------------------------------------------------------------------
+
 
 def test_chain_100k():
     g = Graph()

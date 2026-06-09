@@ -16,7 +16,7 @@ def _cs_reconstruct(pred, inv, node_i, goal_i):
 def _cs_batch_expand(node_i, g, nb_f_offset, heap, g_score, pred, goal_i, inv):
     if node_i == goal_i:
         return _cs_reconstruct(pred, inv, node_i, goal_i)
-    g_score[node_i] = float('-inf')
+    g_score[node_i] = float("-inf")
     nb_entries = nb_f_offset[node_i]
     if len(nb_entries) > 4:
         _batch_f = None
@@ -36,7 +36,10 @@ def _cs_batch_expand(node_i, g, nb_f_offset, heap, g_score, pred, goal_i, inv):
                 else:
                     if _batch_list is not None:
                         if _goal_pos > 0:
-                            _batch_list[0], _batch_list[_goal_pos] = _batch_list[_goal_pos], _batch_list[0]
+                            _batch_list[0], _batch_list[_goal_pos] = (
+                                _batch_list[_goal_pos],
+                                _batch_list[0],
+                            )
                         heapq.heappush(heap, (_batch_f, -_batch_g, _batch_list))
                     _batch_f = new_f
                     _batch_g = new_g
@@ -44,7 +47,10 @@ def _cs_batch_expand(node_i, g, nb_f_offset, heap, g_score, pred, goal_i, inv):
                     _goal_pos = 0 if nxt_i == goal_i else -1
         if _batch_list is not None:
             if _goal_pos > 0:
-                _batch_list[0], _batch_list[_goal_pos] = _batch_list[_goal_pos], _batch_list[0]
+                _batch_list[0], _batch_list[_goal_pos] = (
+                    _batch_list[_goal_pos],
+                    _batch_list[0],
+                )
             heapq.heappush(heap, (_batch_f, -_batch_g, _batch_list))
     else:
         for nxt_i, wt, f_offset in nb_entries:
@@ -72,7 +78,7 @@ def contour_search(
     if is_chain:
         return _chain_search(start_i, goal_i, nb_idx, inv, N)
 
-    g_score = [float('inf')] * N
+    g_score = [float("inf")] * N
     g_score[start_i] = 0.0
     pred = [-1] * N
 
@@ -88,7 +94,9 @@ def contour_search(
             for node_i in entry:
                 if g != g_score[node_i]:
                     continue
-                found = _cs_batch_expand(node_i, g, nb_f_offset, heap, g_score, pred, goal_i, inv)
+                found = _cs_batch_expand(
+                    node_i, g, nb_f_offset, heap, g_score, pred, goal_i, inv
+                )
                 if found is not None:
                     return found
         else:
@@ -102,10 +110,12 @@ def contour_search(
                     cur = pred[cur]
                     path.append(inv[cur])
                 return path[::-1]
-            g_score[node_i] = float('-inf')
+            g_score[node_i] = float("-inf")
             nb_e = nb_f_offset[node_i]
             if len(nb_e) > 4:
-                found = _cs_batch_expand(node_i, g, nb_f_offset, heap, g_score, pred, goal_i, inv)
+                found = _cs_batch_expand(
+                    node_i, g, nb_f_offset, heap, g_score, pred, goal_i, inv
+                )
                 if found is not None:
                     return found
             else:

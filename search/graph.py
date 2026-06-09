@@ -23,7 +23,9 @@ class Graph:
     _cs_nb_f_offset: Optional[List[Optional[List]]] = None
     _cs_is_chain: Optional[bool] = None
 
-    def add_edge(self, u: str, v: str, weight: float = 1.0, bidirectional: bool = True) -> None:
+    def add_edge(
+        self, u: str, v: str, weight: float = 1.0, bidirectional: bool = True
+    ) -> None:
         self.adjacency.setdefault(u, []).append(Edge(v, weight))
         if bidirectional:
             self.adjacency.setdefault(v, []).append(Edge(u, weight))

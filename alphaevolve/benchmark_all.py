@@ -3,6 +3,7 @@
 Comprehensive benchmark comparing contour_search (champion) against
 all other single-source shortest-path algorithms in the codebase.
 """
+
 import math
 import time
 import statistics
@@ -46,9 +47,9 @@ def make_undirected_grid(rows: int, cols: int) -> Tuple[Graph, str, str]:
         for c in range(cols):
             node = f"{r},{c}"
             if c + 1 < cols:
-                g.add_edge(node, f"{r},{c+1}", weight=1, bidirectional=True)
+                g.add_edge(node, f"{r},{c + 1}", weight=1, bidirectional=True)
             if r + 1 < rows:
-                g.add_edge(node, f"{r+1},{c}", weight=1, bidirectional=True)
+                g.add_edge(node, f"{r + 1},{c}", weight=1, bidirectional=True)
     return g, "0,0", f"{rows - 1},{cols - 1}"
 
 
@@ -108,7 +109,9 @@ ALGORITHMS: Dict[str, Callable] = {
 HEURISTIC_ALGOS = {"contour_search", "astar", "greedy_best_first_search"}
 
 
-def run_bench(algo_fn: Callable, name: str, graph, start, goal, heuristic) -> Tuple[float, float, float]:
+def run_bench(
+    algo_fn: Callable, name: str, graph, start, goal, heuristic
+) -> Tuple[float, float, float]:
     for _ in range(WARMUP):
         if name in HEURISTIC_ALGOS:
             algo_fn(graph, start, goal, heuristic)
@@ -180,7 +183,9 @@ def _run_algo(algo_fn, algo_name, graph, start, goal, heuristic):
     return algo_fn(graph, start, goal)
 
 
-def _verify_algo(bench_name, algo_name, algo_fn, graph, start, goal, heuristic, ref, ref_cost):
+def _verify_algo(
+    bench_name, algo_name, algo_fn, graph, start, goal, heuristic, ref, ref_cost
+):
     try:
         r = _run_algo(algo_fn, algo_name, graph, start, goal, heuristic)
         if r:
@@ -205,7 +210,17 @@ def _verify_all():
         for algo_name, algo_fn in ALGORITHMS.items():
             if algo_name == "contour_search":
                 continue
-            ok = _verify_algo(bench_name, algo_name, algo_fn, graph, start, goal, heuristic, ref, ref_cost)
+            ok = _verify_algo(
+                bench_name,
+                algo_name,
+                algo_fn,
+                graph,
+                start,
+                goal,
+                heuristic,
+                ref,
+                ref_cost,
+            )
             if not ok:
                 all_ok = False
     if all_ok:
@@ -221,17 +236,21 @@ def _benchmark_algo(algo_name, algo_fn):
     success = True
     for bench_name, (graph, start, goal), heuristic in BENCHMARKS:
         try:
-            median, mean, stdev = run_bench(algo_fn, algo_name, graph, start, goal, heuristic)
+            median, mean, stdev = run_bench(
+                algo_fn, algo_name, graph, start, goal, heuristic
+            )
             bench_times[bench_name] = (median, mean, stdev)
         except Exception as e:
             print(f"    ERROR: {algo_name} on {bench_name}: {e}")
-            bench_times[bench_name] = (float('inf'), float('inf'), 0.0)
+            bench_times[bench_name] = (float("inf"), float("inf"), 0.0)
             success = False
     return bench_times, success
 
 
 def _print_results(results):
-    print(f"  {'Algorithm':<28} {'Geo-mean':>10} {'Chain_1k':>10} {'Chain_5k':>10} {'Star':>10} {'Grid':>10} {'Dense':>10} {'Score':>10}")
+    print(
+        f"  {'Algorithm':<28} {'Geo-mean':>10} {'Chain_1k':>10} {'Chain_5k':>10} {'Star':>10} {'Grid':>10} {'Dense':>10} {'Score':>10}"
+    )
     print("  " + "-" * 88)
     for algo_name, geo, bt, score in results:
         chain1k = bt.get("chain_1k", (0, 0, 0))[0]
@@ -239,7 +258,9 @@ def _print_results(results):
         star = bt.get("star_500", (0, 0, 0))[0]
         grid = bt.get("grid_2500", (0, 0, 0))[0]
         dense = bt.get("dense_80", (0, 0, 0))[0]
-        print(f"  {algo_name:<28} {geo:>8.4f}ms {chain1k:>8.3f}ms {chain5k:>8.3f}ms {star:>8.3f}ms {grid:>8.3f}ms {dense:>8.3f}ms {score:>8.0f}")
+        print(
+            f"  {algo_name:<28} {geo:>8.4f}ms {chain1k:>8.3f}ms {chain5k:>8.3f}ms {star:>8.3f}ms {grid:>8.3f}ms {dense:>8.3f}ms {score:>8.0f}"
+        )
 
 
 def _print_relative(results):
@@ -249,7 +270,7 @@ def _print_relative(results):
     print(f"  {'Algorithm':<28} {'× slower':>10}")
     print("  " + "-" * 40)
     for algo_name, geo, bt, score in results:
-        ratio = geo / ref_geo if ref_geo > 0 else float('inf')
+        ratio = geo / ref_geo if ref_geo > 0 else float("inf")
         if algo_name == "contour_search":
             print(f"  {algo_name:<28} {ratio:>8.2f}x  (reference)")
         else:
