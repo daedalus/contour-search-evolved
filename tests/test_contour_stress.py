@@ -514,6 +514,16 @@ def test_multiple_calls_same_graph():
     assert contour_search(g, "B", "C") == ["B", "C"]
 
 
+def test_chain_interior_start_undirected():
+    g = Graph()
+    g.add_edge("A", "B")
+    g.add_edge("B", "C")
+    g.add_edge("C", "D")
+    assert contour_search(g, "B", "C") == ["B", "C"]
+    assert contour_search(g, "C", "D") == ["C", "D"]
+    assert contour_search(g, "B", "D") == ["B", "C", "D"]
+
+
 # ---------------------------------------------------------------------------
 # Non-existent start/goal with cached neighbors present
 # ---------------------------------------------------------------------------
