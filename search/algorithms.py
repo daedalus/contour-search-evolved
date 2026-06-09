@@ -692,6 +692,34 @@ def _cs_reconstruct(pred, inv, node_i, goal_i):
     return path[::-1]
 
 
+def _cs_process_single(
+    node_i, g, nb_f_offset, heap, g_score, pred, goal_i, inv, _hp_push
+):
+    if node_i == goal_i:
+        path = [inv[goal_i]]
+        cur = node_i
+        while pred[cur] != -1:
+            cur = pred[cur]
+            path.append(inv[cur])
+        return path[::-1]
+    g_score[node_i] = float("-inf")
+    nb_e = nb_f_offset[node_i]
+    if len(nb_e) > 4:
+        found = _cs_batch_expand(
+            node_i, g, nb_f_offset, heap, g_score, pred, goal_i, inv
+        )
+        if found is not None:
+            return found
+    else:
+        for nxt_i, wt, f_offset in nb_e:
+            new_g = g + wt
+            if new_g < g_score[nxt_i]:
+                g_score[nxt_i] = new_g
+                pred[nxt_i] = node_i
+                _hp_push(heap, (g + f_offset, -new_g, nxt_i))
+    return None
+
+
 def _cs_batch_expand(node_i, g, nb_f_offset, heap, g_score, pred, goal_i, inv):
     if node_i == goal_i:
         return _cs_reconstruct(pred, inv, node_i, goal_i)
@@ -841,29 +869,11 @@ def contour_search(
         else:
             if g != g_score[entry]:
                 continue
-            node_i = entry
-            if node_i == goal_i:
-                path = [inv[goal_i]]
-                cur = node_i
-                while pred[cur] != -1:
-                    cur = pred[cur]
-                    path.append(inv[cur])
-                return path[::-1]
-            g_score[node_i] = float("-inf")
-            nb_e = nb_f_offset[node_i]
-            if len(nb_e) > 4:
-                found = _cs_batch_expand(
-                    node_i, g, nb_f_offset, heap, g_score, pred, goal_i, inv
-                )
-                if found is not None:
-                    return found
-            else:
-                for nxt_i, wt, f_offset in nb_e:
-                    new_g = g + wt
-                    if new_g < g_score[nxt_i]:
-                        g_score[nxt_i] = new_g
-                        pred[nxt_i] = node_i
-                        _hp_push(heap, (g + f_offset, -new_g, nxt_i))
+            found = _cs_process_single(
+                entry, g, nb_f_offset, heap, g_score, pred, goal_i, inv, _hp_push
+            )
+            if found is not None:
+                return found
 
     return None
 
