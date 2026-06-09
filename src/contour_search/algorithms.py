@@ -4,7 +4,7 @@ import heapq
 from collections import deque
 from typing import Callable, Dict, List, Optional, Set
 
-from search.graph import Edge, Graph
+from contour_search.graph import Edge, Graph
 
 
 def _bellman_relax(nodes, dist, pred, graph):

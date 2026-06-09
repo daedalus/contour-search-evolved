@@ -7,7 +7,6 @@ Usage:
   python alphaevolve/evolve.py --llm-cmd "python3 llm_mutate.py"  # real LLM
 """
 
-import sys
 import re
 import random
 import subprocess
@@ -16,15 +15,15 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import List, Optional
 
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
 from alphaevolve.evaluator import (
     evaluate_candidate,
     extract_algorithm,
 )
-from search.algorithms import contour_search as baseline_fn
+from contour_search.algorithms import contour_search as baseline_fn
 
-BASELINE_CODE = Path("search/algorithms.py").read_text()
+BASELINE_CODE = (
+    Path(__file__).parent.parent / "src/contour_search/algorithms.py"
+).read_text()
 # Extract just the contour_search function
 _start_marker = "def contour_search("
 _end_marker = "\n\n\ndef "
@@ -38,7 +37,7 @@ else:
 BASELINE_IMPORT = """from __future__ import annotations
 from collections import defaultdict
 from typing import Callable, Dict, List, Optional, Set
-from search.graph import Edge, Graph
+from contour_search.graph import Edge, Graph
 """
 
 

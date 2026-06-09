@@ -7,13 +7,9 @@ all other single-source shortest-path algorithms in the codebase.
 import math
 import time
 import statistics
-import sys
-from pathlib import Path
 from typing import Callable, Dict, List, Tuple
 
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
-from search.algorithms import (
+from contour_search.algorithms import (
     contour_search,
     astar,
     dijkstra,

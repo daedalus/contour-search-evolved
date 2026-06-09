@@ -24,12 +24,12 @@ python alphaevolve/evolve.py --llm-cmd "..."
 ```
 
 ## Code Structure
+- `src/contour_search/algorithms.py` — all 17 algorithms + private helpers (`_cs_*` for contour internals)
 
-- `search/algorithms.py` — all 17 algorithms + private helpers (`_cs_*` for contour internals)
-- `search/graph.py` — `Edge` dataclass, `Graph` dataclass (adjacency list)
+  - `src/contour_search/graph.py` — `Edge` dataclass, `Graph` dataclass (adjacency list)
 - `alphaevolve/` — evolution framework: `evaluator.py` (scoring), `evolve.py` (LLM loop), `run_evolution.py` (loader/validator), `benchmark_all.py` (full comparison)
 - `alphaevolve/candidates/` — M140 (prev champion), M146 (current champion)
-- `alphaevolve/best_found.py` — thin re-export from `search.algorithms`
+- `alphaevolve/best_found.py` — thin re-export from `contour_search.algorithms`
 - `tests/test_algorithms.py` — 203 tests, all algorithms
 - `tests/test_contour_stress.py` — 59 stress tests, 20 random seeds vs Dijkstra
 
@@ -42,7 +42,7 @@ python alphaevolve/evolve.py --llm-cmd "..."
 
 ## Editing Rules
 
-- `contour_search` lives in `search/algorithms.py`. Never break the public interface.
+- `contour_search` lives in `src/contour_search/algorithms.py`. Never break the public interface.
 - Every mutation must pass `pytest tests/ -q -m "not slow"` before commit.
 - Stale-entry check must be preserved for non-consistent heuristics.
 - New candidates go in `alphaevolve/candidates/` with `M<number>_<description>.py` naming.

@@ -8,13 +8,10 @@ Higher score = faster algorithm.
 import math
 import time
 import statistics
-import sys
 from pathlib import Path
 from typing import Callable, Dict, List
 
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
-from search.graph import Graph
+from contour_search.graph import Graph
 from alphaevolve.benchmarks import BENCHMARKS, WARMUP
 
 RUNS = 15
@@ -102,7 +99,7 @@ def load_candidate_from_file(filepath: str) -> Callable:
 
 
 def compare_with_baseline(candidate_path: str):
-    from search.algorithms import contour_search as baseline
+    from contour_search.algorithms import contour_search as baseline
 
     candidate_fn = load_candidate_from_file(candidate_path)
 
@@ -156,7 +153,7 @@ if __name__ == "__main__":
     if len(sys.argv) > 1:
         compare_with_baseline(sys.argv[1])
     else:
-        from search.algorithms import contour_search as baseline
+        from contour_search.algorithms import contour_search as baseline
 
         print("Evaluating baseline contour_search...")
         score = evaluate_candidate(baseline)

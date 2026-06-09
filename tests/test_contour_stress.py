@@ -1,8 +1,8 @@
 import pytest
 import random
 
-from search.graph import Graph
-from search.algorithms import contour_search, dijkstra
+from contour_search.graph import Graph
+from contour_search.algorithms import contour_search, dijkstra
 
 
 # ---------------------------------------------------------------------------

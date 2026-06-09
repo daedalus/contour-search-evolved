@@ -1,13 +1,10 @@
 #!/usr/bin/env python3
 """AlphaEvolve runner: test candidates, benchmark, promote champion."""
 
-import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
 from alphaevolve.evaluator import evaluate_candidate, evaluate_candidate_detailed
-from search.algorithms import contour_search as baseline
+from contour_search.algorithms import contour_search as baseline
 
 
 CANDIDATE_DIR = Path(__file__).parent / "candidates"
@@ -25,7 +22,7 @@ def load_candidate(path: Path):
 
 def quick_correctness_check(fn) -> bool:
     """Run a quick smoke test: chain_5k, grid_2500, unreachable."""
-    from search.graph import Graph
+    from contour_search.graph import Graph
 
     # Chain 5k
     g = Graph()

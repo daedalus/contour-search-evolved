@@ -5,7 +5,7 @@ Used by evaluator.py and benchmark_all.py.
 
 from typing import Callable, List, Tuple
 
-from search.graph import Graph
+from contour_search.graph import Graph
 
 
 def make_undirected_chain(n: int) -> Tuple[Graph, str, str]:

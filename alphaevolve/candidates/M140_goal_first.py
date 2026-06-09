@@ -1,7 +1,7 @@
 from typing import Callable, List, Optional
 import heapq
-from search.graph import Graph
-from search.algorithms import _cs_prepare, _chain_search
+from contour_search.graph import Graph
+from contour_search.algorithms import _cs_prepare, _chain_search
 
 
 def _cs_reconstruct(pred, inv, node_i, goal_i):

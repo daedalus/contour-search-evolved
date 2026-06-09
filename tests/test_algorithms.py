@@ -2,8 +2,8 @@ import time
 
 import pytest
 
-from search.graph import Edge, Graph
-from search.algorithms import (
+from contour_search.graph import Edge, Graph
+from contour_search.algorithms import (
     astar,
     bellman_ford,
     bfs,

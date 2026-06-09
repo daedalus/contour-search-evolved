@@ -38,7 +38,7 @@
 ## Usage
 
 ```python
-from search import Graph, dijkstra
+from contour_search import Graph, dijkstra
 
 g = Graph()
 g.add_edge("A", "B", weight=4)
