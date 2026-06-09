@@ -125,11 +125,9 @@ bidir_bfs               0.283     1.638     0.036     0.746     0.006
 spfa                    0.600     3.277     0.267     2.018     0.491
 ```
 
-Full benchmark: `python benchmarks/run.py`
-
 Evolution framework in `alphaevolve/`:
+- `benchmark_all.py` — full comparison of 9 single-source algorithms (30-run timed)
 - `evaluator.py` — benchmark harness (5 graph topologies, geo-mean scoring)
-- `mutations.py` — programmatic variants M0–M7
 - `evolve.py` — LLM-driven evolutionary loop
-- `candidates/` — historical candidates (M74–M146)
-- `benchmark_all.py` — full comparison of 9 single-source algorithms
+- `run_evolution.py` — load/verify/benchmark candidate mutations
+- `candidates/` — M140 (previous champion) and M146 (current champion)
