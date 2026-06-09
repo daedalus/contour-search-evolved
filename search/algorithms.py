@@ -643,59 +643,38 @@ def contour_search(
                 lst.sort(key=lambda x: x[2])
             graph._cs_nb_f_offset = nb_f_offset
 
-    buckets: Dict[float, List[int]] = {}
-    key_heap: List[float] = []
-    f_start = h_cache[start_i]
-    buckets[f_start] = [start_i]
-    heapq.heappush(key_heap, f_start)
-
     g_score = [float('inf')] * N
     g_score[start_i] = 0.0
     pred = [-1] * N
     VISITED = float('-inf')
 
-    _last_f = f_start
-    _last_list = buckets[f_start]
+    f_start = h_cache[start_i]
+    heap = [(f_start, 0.0, start_i)]
 
-    while key_heap:
-        f_key = heapq.heappop(key_heap)
-        entries = buckets.pop(f_key, None)
-        if entries is None:
+    while heap:
+        f_key, neg_g, node_i = heapq.heappop(heap)
+        g = -neg_g
+
+        if g != g_score[node_i]:
             continue
-        _last_f = f_key
-        _last_list = entries
 
-        for node_i in entries:
-            g = g_score[node_i]
-            if g == VISITED:
-                continue
-            if node_i == goal_i:
-                path = [inv[goal_i]]
-                cur = node_i
-                while pred[cur] != -1:
-                    cur = pred[cur]
-                    path.append(inv[cur])
-                return path[::-1]
+        if node_i == goal_i:
+            path = [inv[goal_i]]
+            cur = node_i
+            while pred[cur] != -1:
+                cur = pred[cur]
+                path.append(inv[cur])
+            return path[::-1]
 
-            g_score[node_i] = VISITED
+        g_score[node_i] = VISITED
 
-            for nxt_i, wt, f_offset in nb_f_offset[node_i]:
-                new_g = g + wt
-                if new_g < g_score[nxt_i]:
-                    g_score[nxt_i] = new_g
-                    pred[nxt_i] = node_i
-                    new_f = g + f_offset
-                    if new_f == _last_f:
-                        _last_list.append(nxt_i)
-                    else:
-                        try:
-                            _last_list = buckets[new_f]
-                            _last_list.append(nxt_i)
-                        except KeyError:
-                            _last_list = [nxt_i]
-                            buckets[new_f] = _last_list
-                            heapq.heappush(key_heap, new_f)
-                        _last_f = new_f
+        for nxt_i, wt, f_offset in nb_f_offset[node_i]:
+            new_g = g + wt
+            if new_g < g_score[nxt_i]:
+                g_score[nxt_i] = new_g
+                pred[nxt_i] = node_i
+                new_f = g + f_offset
+                heapq.heappush(heap, (new_f, -new_g, nxt_i))
 
     return None
 
