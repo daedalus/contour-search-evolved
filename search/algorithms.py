@@ -706,7 +706,7 @@ def _cs_process_single(
     nb_e = nb_f_offset[node_i]
     if len(nb_e) > 4:
         found = _cs_batch_expand(
-            node_i, g, nb_f_offset, heap, g_score, pred, goal_i, inv
+            node_i, g, nb_f_offset, heap, g_score, pred, goal_i, inv, _hp_push
         )
         if found is not None:
             return found
@@ -720,7 +720,9 @@ def _cs_process_single(
     return None
 
 
-def _cs_batch_expand(node_i, g, nb_f_offset, heap, g_score, pred, goal_i, inv):
+def _cs_batch_expand(
+    node_i, g, nb_f_offset, heap, g_score, pred, goal_i, inv, _hp_push
+):
     if node_i == goal_i:
         return _cs_reconstruct(pred, inv, node_i, goal_i)
     g_score[node_i] = float("-inf")
@@ -745,7 +747,7 @@ def _cs_batch_expand(node_i, g, nb_f_offset, heap, g_score, pred, goal_i, inv):
                             _batch_list[_goal_pos],
                             _batch_list[0],
                         )
-                    heapq.heappush(heap, (_batch_f, -_batch_g, _batch_list))
+                    _hp_push(heap, (_batch_f, -_batch_g, _batch_list))
                 _batch_f = new_f
                 _batch_g = new_g
                 _batch_list = [nxt_i]
@@ -756,7 +758,7 @@ def _cs_batch_expand(node_i, g, nb_f_offset, heap, g_score, pred, goal_i, inv):
                 _batch_list[_goal_pos],
                 _batch_list[0],
             )
-        heapq.heappush(heap, (_batch_f, -_batch_g, _batch_list))
+        _hp_push(heap, (_batch_f, -_batch_g, _batch_list))
     return None
 
 
@@ -862,7 +864,7 @@ def contour_search(
                 if g != g_score[node_i]:
                     continue
                 found = _cs_batch_expand(
-                    node_i, g, nb_f_offset, heap, g_score, pred, goal_i, inv
+                    node_i, g, nb_f_offset, heap, g_score, pred, goal_i, inv, _hp_push
                 )
                 if found is not None:
                     return found
