@@ -789,6 +789,9 @@ def _cs_init_idx(graph):
 
 def _cs_get_hcache(graph, N, inv, nb_idx, goal, heuristic, precision):
     h_cache = graph._cs_h_cache
+    # Identity check (is not) avoids calling __eq__ on every call but will
+    # spuriously rebuild if the user passes a freshly-instantiated callable
+    # each time (e.g., a lambda in a loop or a per-call bound method).
     needs_build = (
         h_cache is None
         or graph._cs_h_goal != goal
