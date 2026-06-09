@@ -60,7 +60,9 @@ pytest tests/ -q    # 262 tests (203 original + 59 contour-search stress tests)
 
 ## Contour Search & AlphaEvolve
 
-`contour_search` is a single-heap A\* variant that combines stale-entry checking (avoids re-expanding nodes discovered with worse g) with degree-gated batch-push (neighbors sharing identical `(f, -g)` are pushed as a single heap entry). It was evolved through multiple rounds of AlphaEvolve optimization:
+In A* terminology, nodes sharing the same `f = g + h` value form a **contour** — like elevation lines on a topographic map (Hart, Nilsson & Raphael, 1968). `contour_search` exploits this by batch-pushing all neighbors with identical `(f, -g)` as a single heap entry and expanding them together on pop, processing the search space contour-by-contour rather than node-by-node.
+
+It is a single-heap A\* variant that combines stale-entry checking (avoids re-expanding nodes discovered with worse g) with degree-gated batch-push (neighbors sharing identical `(f, -g)` are pushed as a single heap entry). It was evolved through multiple rounds of AlphaEvolve optimization:
 
 | Mutation | Change | Geo-mean | vs baseline |
 |----------|--------|----------|-------------|
