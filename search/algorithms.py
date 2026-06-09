@@ -153,6 +153,14 @@ def _bd_backward_expand(b_node, b_dist, graph, backward_pq, backward_dist, backw
     return best_cost, best_path
 
 
+def _bd_try_meet(node, dist, opp_dist, opp_pred, pred, best_cost, best_path):
+    if node in opp_pred:
+        total = dist + opp_dist[node]
+        if total < best_cost:
+            return total, _bd_reconstruct(node, pred, opp_pred)
+    return best_cost, best_path
+
+
 def bidirectional_dijkstra(graph: Graph, start: str, goal: str) -> Optional[List[str]]:
     if start not in graph.adjacency or goal not in graph.adjacency:
         return None
@@ -171,8 +179,14 @@ def bidirectional_dijkstra(graph: Graph, start: str, goal: str) -> Optional[List
     best_cost: float = float("inf")
 
     while forward_pq and backward_pq:
+        if forward_pq[0][0] + backward_pq[0][0] >= best_cost:
+            break
+
         f_dist, f_node = heapq.heappop(forward_pq)
         forward_visited.add(f_node)
+        best_cost, best_path = _bd_try_meet(
+            f_node, f_dist, backward_dist, backward_pred, forward_pred, best_cost, best_path
+        )
         if f_dist + backward_dist.get(f_node, float("inf")) <= best_cost:
             best_cost, best_path = _bd_forward_expand(
                 f_node, f_dist, graph, forward_pq, forward_dist, forward_pred,
@@ -181,6 +195,9 @@ def bidirectional_dijkstra(graph: Graph, start: str, goal: str) -> Optional[List
 
         b_dist, b_node = heapq.heappop(backward_pq)
         backward_visited.add(b_node)
+        best_cost, best_path = _bd_try_meet(
+            b_node, b_dist, forward_dist, forward_pred, backward_pred, best_cost, best_path
+        )
         if b_dist + forward_dist.get(b_node, float("inf")) <= best_cost:
             best_cost, best_path = _bd_backward_expand(
                 b_node, b_dist, graph, backward_pq, backward_dist, backward_pred,
@@ -614,42 +631,33 @@ def _cs_batch_expand(node_i, g, nb_f_offset, heap, g_score, pred, goal_i, inv):
     if node_i == goal_i:
         return _cs_reconstruct(pred, inv, node_i, goal_i)
     g_score[node_i] = float('-inf')
-    nb_entries = nb_f_offset[node_i]
-    if len(nb_entries) > 4:
-        _batch_f = None
-        _batch_g = None
-        _batch_list = None
-        _goal_pos = -1
-        for nxt_i, wt, f_offset in nb_entries:
-            new_g = g + wt
-            if new_g < g_score[nxt_i]:
-                g_score[nxt_i] = new_g
-                pred[nxt_i] = node_i
-                new_f = g + f_offset
-                if _batch_f == new_f and _batch_g == new_g:
-                    _batch_list.append(nxt_i)
-                    if nxt_i == goal_i:
-                        _goal_pos = len(_batch_list) - 1
-                else:
-                    if _batch_list is not None:
-                        if _goal_pos > 0:
-                            _batch_list[0], _batch_list[_goal_pos] = _batch_list[_goal_pos], _batch_list[0]
-                        heapq.heappush(heap, (_batch_f, -_batch_g, _batch_list))
-                    _batch_f = new_f
-                    _batch_g = new_g
-                    _batch_list = [nxt_i]
-                    _goal_pos = 0 if nxt_i == goal_i else -1
-        if _batch_list is not None:
-            if _goal_pos > 0:
-                _batch_list[0], _batch_list[_goal_pos] = _batch_list[_goal_pos], _batch_list[0]
-            heapq.heappush(heap, (_batch_f, -_batch_g, _batch_list))
-    else:
-        for nxt_i, wt, f_offset in nb_entries:
-            new_g = g + wt
-            if new_g < g_score[nxt_i]:
-                g_score[nxt_i] = new_g
-                pred[nxt_i] = node_i
-                heapq.heappush(heap, (g + f_offset, -new_g, nxt_i))
+    _batch_f = None
+    _batch_g = None
+    _batch_list = None
+    _goal_pos = -1
+    for nxt_i, wt, f_offset in nb_f_offset[node_i]:
+        new_g = g + wt
+        if new_g < g_score[nxt_i]:
+            g_score[nxt_i] = new_g
+            pred[nxt_i] = node_i
+            new_f = g + f_offset
+            if _batch_f == new_f and _batch_g == new_g:
+                _batch_list.append(nxt_i)
+                if nxt_i == goal_i:
+                    _goal_pos = len(_batch_list) - 1
+            else:
+                if _batch_list is not None:
+                    if _goal_pos > 0:
+                        _batch_list[0], _batch_list[_goal_pos] = _batch_list[_goal_pos], _batch_list[0]
+                    heapq.heappush(heap, (_batch_f, -_batch_g, _batch_list))
+                _batch_f = new_f
+                _batch_g = new_g
+                _batch_list = [nxt_i]
+                _goal_pos = 0 if nxt_i == goal_i else -1
+    if _batch_list is not None:
+        if _goal_pos > 0:
+            _batch_list[0], _batch_list[_goal_pos] = _batch_list[_goal_pos], _batch_list[0]
+        heapq.heappush(heap, (_batch_f, -_batch_g, _batch_list))
     return None
 
 
