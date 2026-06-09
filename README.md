@@ -62,7 +62,33 @@ pytest tests/ -q    # 262 tests (203 original + 59 contour-search stress tests)
 
 In A* terminology, nodes sharing the same `f = g + h` value form a **contour** — like elevation lines on a topographic map (see Nilsson, *Problem-Solving Methods in Artificial Intelligence*, 1971; Russell & Norvig, *Artificial Intelligence: A Modern Approach*). `contour_search` exploits this by batch-pushing all neighbors with identical `(f, -g)` as a single heap entry and expanding them together on pop, processing the search space contour-by-contour rather than node-by-node.
 
-It is a single-heap A\* variant that combines stale-entry checking (avoids re-expanding nodes discovered with worse g) with degree-gated batch-push (neighbors sharing identical `(f, -g)` are pushed as a single heap entry). It was evolved through multiple rounds of AlphaEvolve optimization (using the `alphaevolve` opencode skill):
+It is a single-heap A\* variant that combines stale-entry checking (avoids re-expanding nodes discovered with worse g) with degree-gated batch-push (neighbors sharing identical `(f, -g)` are pushed as a single heap entry).
+
+### Optimality
+
+`contour_search` is provably optimal given an admissible heuristic (never overestimates). The proof follows the standard A* optimality argument (Hart, Nilsson, Raphael 1968):
+
+1. **Admissible heuristic** — the first time a node is popped, `g_score[node]` is the optimal cost. The heap guarantees expansion in non-decreasing f-order, and admissibility ensures no goal is reached suboptimally before an optimal path exists.
+
+2. **Stale-entry check** — each node is expanded at most once with its optimal g. When a better path is discovered after a node was already pushed, the check `if g != g_score[node_i]: continue` silently discards the outdated entry. This is standard A* practice and does not weaken the optimality guarantee.
+
+3. **Batch-push** — all nodes in a batch share identical `(f, -g)`, hence equal priority. Expanding them together rather than individually preserves the A* expansion order: the same set of nodes is processed before any strictly-lower-f entry. No node is skipped or reordered out of f-order.
+
+**Corollary**: `contour_search` terminates with an optimal path if one exists, and `None` otherwise.
+
+### Complexity
+
+| Case | Time | Space | Notes |
+|------|------|-------|-------|
+| **Worst** | O((V + E) log V) | O(V) | All nodes have distinct (f, -g); no batching. Same as A*. |
+| **Typical** | O((V + E) / B · log(V / B)) amortized | O(V) | B = average batch size. Contour-level heap ops. |
+| **Chain fast-path** | O(V) | O(1) | Detects deg≤2 undirected chain; linear walk, no heap. |
+
+**Worst-case construction**: a path with strictly increasing edge weights and h=0: each node produces a unique (f, -g) tuple, so every edge triggers a heap push. Asymptotically identical to standard A*.
+
+**Batch benefit**: on grids, stars, and graphs with smooth heuristics, many nodes share identical (f, -g). Batch-push collapses them into a single heap entry, reducing heap operations from O(E) to O(contours). Combined with the stale-entry check, each node is expanded exactly once.
+
+It was evolved through multiple rounds of AlphaEvolve optimization (using the `alphaevolve` opencode skill):
 
 | Mutation | Change | Geo-mean | vs baseline |
 |----------|--------|----------|-------------|
