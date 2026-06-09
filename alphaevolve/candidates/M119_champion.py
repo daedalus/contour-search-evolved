@@ -1,3 +1,11 @@
+"""
+M119: Sort neighbors by f_offset + chain fast-path.
+
+Sorting neighbors by f_offset processes the most promising paths first,
+reducing node expansions.  Combined with the chain fast-path from M118.
+~6% improvement over M118 on grid_2500.
+"""
+
 from typing import Callable, Dict, List, Optional
 import heapq
 from search.graph import Graph
