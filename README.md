@@ -26,7 +26,7 @@
 | `dag_shortest_path` | O(V + E) | O(V) | yes | DAG only; fastest general SSSP |
 | `astar` | O(E) typical / O(b^d) worst | O(V) | with admissible h | Heuristic-guided |
 | `greedy_best_first` | O(E) typical | O(V) | no | Pure heuristic, no g-cost |
-| `contour_search` | O(V + E) typical | O(V) | with admissible h | Bucket-based A* |
+| `contour_search` | O(V + E) typical | O(V) | with admissible h | Single-heap A* with batch-push |
 | `bidirectional_bfs` | O(b^(d/2)) | O(b^(d/2)) | unweighted | Meet-in-the-middle BFS |
 | `bidirectional_dijkstra` | O((V + E) log V) | O(V) | yes | Meet-in-the-middle Dijkstra |
 | `floyd_warshall` | O(V³) | O(V²) | yes | All-pairs; detect neg cycles |
@@ -60,10 +60,10 @@ pytest tests/ -q    # 262 tests (203 original + 59 contour-search stress tests)
 
 ## Contour Search & AlphaEvolve
 
-`contour_search` is a bucket-based A* variant that groups nodes by quantized f-values, expanding all nodes in the cheapest bucket before moving to the next. It was evolved through 6 rounds of AlphaEvolve optimization:
+`contour_search` is a single-heap A\* variant that combines stale-entry checking (avoids re-expanding nodes discovered with worse g) with degree-gated batch-push (neighbors sharing identical `(f, -g)` are pushed as a single heap entry). It was evolved through multiple rounds of AlphaEvolve optimization:
 
-| Mutation | Change | Runtime | vs baseline |
-|----------|--------|---------|-------------|
+| Mutation | Change | Geo-mean | vs baseline |
+|----------|--------|----------|-------------|
 | Baseline | path-copy, `min(buckets.keys())` | 8.90 ms | 1.00× |
 | M2 | predecessor map (no path copies) | 2.90 ms | 3.07× |
 | M3 | + local variable bindings | 2.71 ms | 3.28× |
@@ -74,15 +74,24 @@ pytest tests/ -q    # 262 tests (203 original + 59 contour-search stress tests)
 | **M68** | + int-indexed node storage (list/bytearray replace dict/set in hot loop) | 1.22 ms | 7.30× |
 | **M72** | + cached bucket-list reference (eliminate `dict.get` from hot loop) | 0.974 ms | 9.14× |
 | **M73** | + list-backed nb_idx (`List` replaces `Dict` for adjacency cache) | ~0.89 ms | ~10.0× |
-| **M79** | + heap-ordered bucket keys (eliminates `current_min` + `min(buckets.keys())`) | **~0.63 ms** | **~14.1×** |
+| **M79** | + heap-ordered bucket keys (eliminates `current_min` + `min(buckets.keys())`) | ~0.63 ms | ~14.1× |
+| **M119** | + neighbor sort by f-offset + chain fast-path | 0.356 ms | ~25× |
+| **M137** | + single flat heap + stale-entry check (replaces two-level bucket dict) | 0.157 ms | ~57× |
+| **M138** | + degree-gated batch-push (fix star regression, push equal-priority neighbors as list) | 0.147 ms | ~61× |
+
+Current champion (`M138`): geo-mean 0.147ms, score ~6900. 262 tests passing.
 
 M61 converts `Edge` objects to `(target, weight)` tuples once (lazily cached on the graph object via `graph._cs_nb`), replacing `edge.target`/`edge.weight` `__dict__` lookups with C-level tuple unpacking in the hot loop. The cache is invalidated on graph mutation (`add_edge` deletes `_cs_*` attributes, triggering a rebuild on the next call).
 
 M68 discards string-based dict/set operations in the inner loop entirely. Node names are mapped to integer indices (cached on the graph as `_cs_idx`/`_cs_inv`/`_cs_nb_idx`), and the hot loop uses `bytearray` for visited checks, `List[float]` for g-scores and heuristic cache, and `List[int]` for predecessors — replacing 4–5 dict operations per edge with C-level array accesses.
 
-M72 caches the last-accessed bucket list reference (`_last_f`/`_last_list`), eliminating `dict.get` from the hot loop's common path. When consecutive node expansions produce the same f-value (the dominant case for well-informed heuristics), nodes are appended directly to the cached list — `dict.get`, the `if lst is None` check, and the `dict.__setitem__` path are all skipped. This kills the last dict operation in the hot loop: the profile shows `dict.pop` at 200 calls (from 1M) and `dict.get` at 0 calls across 200 iterations of chain_5k. Delivers 1.22× over M68 (0.974 ms mean, 9.14× vs baseline).
+M72 caches the last-accessed bucket list reference (`_last_f`/`_last_list`), eliminating `dict.get` from the hot loop's common path. When consecutive node expansions produce the same f-value (the dominant case for well-informed heuristics), nodes are appended directly to the cached list — `dict.get`, the `if lst is None` check, and the `dict.__setitem__` path are all skipped.
 
-M73 stores the cached neighbor index (`_cs_nb_idx`) as a `List[Optional[List[Tuple[int, float]]]]` instead of `Dict[int, List[Tuple[int, float]]]`. After M68, node indices are already dense integers 0..N-1, so dict lookup by int key was already fast — but list subscript via `BINARY_SUBSCR` is still ~50ns faster per access. On grid_2500 (where every node expansion looks up its ~4 neighbors), this saves ~0.2ms per call (~10% improvement). On chains (2 neighbors per expansion), the effect is within noise.
+M73 stores the cached neighbor index (`_cs_nb_idx`) as a `List[Optional[List[Tuple[int, float]]]]` instead of `Dict[int, List[Tuple[int, float]]]`. After M68, node indices are already dense integers 0..N-1, so list subscript via `BINARY_SUBSCR` is still ~50ns faster per access.
+
+M137 replaces the two-level bucket dict + key_heap + `_last_f`/`_last_list` with a single heap `(f, -g, node_i)` and a stale-entry check `if g != g_score[node_i]: continue`. This eliminates bucket management overhead (dict pop, the `_last_f` caching machinery) and ensures each node is expanded exactly once. Grid_2500 drops from 0.895ms to 0.070ms (−92%). However, on star topologies (uniform g, all nodes equal priority), the per-node heap operations regress ~2× vs the bucket approach.
+
+M138 fixes the star regression: when expanding a high-fanout node (degree > 4), neighbors with identical `(f, -g)` are collected into a local list and pushed as a single heap entry. On pop, batch entries are detected via `isinstance(entry, list)` and iterated directly. star_500 recovers from 0.243ms to 0.106ms, grid_2500 stays at 0.076ms (within noise of M137).
 
 ### Signal vs noise
 
@@ -102,9 +111,21 @@ Every successful mutation removed a specific Python overhead from the per-edge h
 
 The common pattern: every ≥1.15× win removed either a **hash-table operation** (dict get/set, `__dict__` probe) or a **Python-level allocation** (path copy, list alloc) from the per-edge path. The remaining hot loop is pure C-level array reads/writes and float math.
 
+## Benchmarks (median, ms)
+
+```
+                        chain_1k  chain_5k  star_500  grid_2500  dense_80
+contour_search            0.252     1.250     0.109     0.076     0.022
+dag_shortest_path         0.198     1.093     0.095     0.852     0.341
+bidir_bfs                 0.283     1.638     0.036     0.746     0.006
+spfa                      0.600     3.277     0.267     2.018     0.491
+```
+
+Full benchmark: `python benchmarks/run.py`
+
 Evolution framework in `alphaevolve/`:
-- `evaluator.py` — benchmark harness (5 graph topologies, median timing)
+- `evaluator.py` — benchmark harness (5 graph topologies, geo-mean scoring)
 - `mutations.py` — programmatic variants M0–M7
 - `evolve.py` — LLM-driven evolutionary loop
-- `best_found.py` — current champion (M79)
-- `candidates/` — historical candidates including failed mutations (M74–M78)
+- `candidates/` — historical candidates (M74–M138)
+- `benchmark_all.py` — full comparison of 9 single-source algorithms
