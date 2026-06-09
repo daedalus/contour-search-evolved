@@ -640,6 +640,9 @@ def _cs_expand_node(node_i, g, nb_f_offset, heap, g_score, pred, goal_i, inv):
                     _batch_g = new_g
                     _batch_list = [nxt_i]
         if _batch_list is not None:
+            if len(_batch_list) > 1 and goal_i in _batch_list:
+                _batch_list.remove(goal_i)
+                _batch_list.insert(0, goal_i)
             heapq.heappush(heap, (_batch_f, -_batch_g, _batch_list))
     else:
         for nxt_i, wt, f_offset in nb_entries:
